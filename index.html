@@ -89,6 +89,16 @@ table.dg tr.r2{height:34mm}
 html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
 .photo,.photo .ph{-webkit-touch-callout:none}
 
+
+/* PDF作成時の見た目（編集用の部品を隠す） */
+.cap .no-print,.cap .sec-tools,.cap .photo .rm,.cap .photo .ph,.cap .photo .cam{display:none !important}
+.cap .sheet{margin:0 !important;box-shadow:none !important}
+.cap [contenteditable]:hover,.cap [contenteditable]:focus{background:none !important}
+.cap [contenteditable]:empty::before{content:none !important}
+.cap .photo{border-color:#999}
+.cap .photo:not(.has){background:#fff}
+#pdfBusy{position:fixed;inset:0;z-index:99;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px}
+
 /* ---- 印刷：画面と同じA4を1枚ずつ ---- */
 @page{size:A4;margin:0}
 @media print{
@@ -113,6 +123,7 @@ html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
 <div class="toolbar no-print">
   <b>点検報告書</b>
   <button id="btnPrint">印刷 / PDFで保存</button>
+  <button id="btnPdf">PDFファイルを作成</button>
   <button id="addSec" class="sub">＋ 診断箇所（見出し）を追加</button>
   <button id="btnSave" class="sub">このHTMLを保存（写真ごと）</button>
   <button id="btnNew" class="sub">新しい報告書にする</button>
@@ -128,6 +139,8 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
 </div></noscript>
 <div id="doc"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 (function(){
   if(/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1)){document.documentElement.classList.add("ios")}
@@ -322,6 +335,53 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
       document.documentElement.removeAttribute("data-baked");
       location.reload();
     }
+  });
+
+  /* ---------- PDFファイルを作成（用紙1枚＝A4 1ページ。印刷機能に頼らない） ---------- */
+  function buildPdf(){
+    if(!window.html2canvas||!window.jspdf){alert("PDF作成の部品を読み込めませんでした。ネットにつないでから、ページを更新してください。");return Promise.reject(new Error("lib"))}
+    clearTimeout(timer);if(needRepaginate())paginate();save();
+    var root=document.documentElement,prevZoom=doc.style.zoom;
+    var busy=document.createElement("div");busy.id="pdfBusy";busy.textContent="PDFを作成しています…";document.body.appendChild(busy);
+    root.classList.add("cap");doc.style.zoom="";
+    var pdf=new window.jspdf.jsPDF({unit:"mm",format:"a4",orientation:"portrait",compress:true});
+    var sheets=[].slice.call(doc.querySelectorAll(".sheet"));
+    /* html2canvasはobject-fitに非対応のため、写真は背景画像（cover）に置き換えて撮る */
+    var swapped=[];
+    doc.querySelectorAll(".photo.has").forEach(function(p){
+      var im=p.querySelector("img");if(!im||!im.getAttribute("src"))return;
+      swapped.push([p,im,p.style.cssText]);
+      p.style.background="#fff url("+im.getAttribute("src")+") center/cover no-repeat";
+      im.style.visibility="hidden";
+    });
+    var chain=Promise.resolve();
+    sheets.forEach(function(sh,i){
+      chain=chain.then(function(){
+        return window.html2canvas(sh,{scale:2,backgroundColor:"#ffffff",useCORS:true,logging:false}).then(function(c){
+          if(i>0)pdf.addPage("a4","portrait");
+          pdf.addImage(c.toDataURL("image/jpeg",0.92),"JPEG",0,0,210,297,undefined,"FAST");
+        });
+      });
+    });
+    return chain.then(function(){return pdf}).finally(function(){
+      swapped.forEach(function(x){x[0].style.cssText=x[2];x[1].style.visibility=""});
+      root.classList.remove("cap");doc.style.zoom=prevZoom;fit();busy.remove();
+    });
+  }
+  window.__buildPdf=buildPdf;
+  function pdfName(){
+    var cell=doc.querySelector("table.info td:nth-child(2)");
+    var owner=((cell&&cell.textContent)||"").replace(/\s|　/g,"")||"報告書";
+    return "点検報告書_"+owner+".pdf";
+  }
+  document.getElementById("btnPdf").addEventListener("click",function(){
+    buildPdf().then(function(pdf){
+      var blob=pdf.output("blob"),name=pdfName();
+      var file=new File([blob],name,{type:"application/pdf"});
+      if(navigator.canShare&&navigator.canShare({files:[file]})){
+        navigator.share({files:[file],title:name}).catch(function(){pdf.save(name)});
+      }else{pdf.save(name)}
+    }).catch(function(){});
   });
   document.getElementById("btnSave").addEventListener("click",function(){
     paginate();save();
