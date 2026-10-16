@@ -95,6 +95,9 @@ html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
   html,body{background:#fff}
   .toolbar,.no-print,.sec-tools,.photo .rm{display:none !important}
   #doc{zoom:1 !important}
+  /* iPad/iPhoneのSafariは独自の余白を足すため、印刷時だけ縮めて収める */
+  html.ios #doc{zoom:.82 !important}
+  html.ios .sheet{margin:0 auto}
   .sheet{margin:0;box-shadow:none;height:296.5mm;break-after:page;break-inside:avoid}
   .sheet:last-child{break-after:auto}
   [contenteditable]:hover,[contenteditable]:focus{background:none}
@@ -127,6 +130,7 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
 
 <script>
 (function(){
+  if(/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1)){document.documentElement.classList.add("ios")}
   var KEY="teikiShindanReport.v3";
   var doc=document.getElementById("doc");
   var DEF_RESULT="異常ありません。";
