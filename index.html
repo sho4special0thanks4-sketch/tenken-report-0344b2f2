@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+<title>点検報告書</title>
+<meta name="robots" content="noindex,nofollow">
+<style>
+:root{--line:#1f5a2a;--navy:#2e7d32;--purple:#2e7d32}
+*{box-sizing:border-box}
+html{background:#dfe5d6}
+body{margin:0;font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;color:#111;font-size:13px;line-height:1.5}
+[hidden]{display:none !important}
+
+/* ---- ツールバー（画面のみ） ---- */
+.toolbar{position:sticky;top:0;z-index:20;background:#1f4d27;color:#fff;padding:8px 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.toolbar b{margin-right:8px}
+.toolbar button{font:inherit;font-size:13px;border:0;border-radius:6px;padding:7px 12px;cursor:pointer;background:#2e7d32;color:#fff}
+.toolbar button.sub{background:#5c7a3a}
+.toolbar .note{font-size:12px;opacity:.85;margin-left:auto}
+#saveState,#pageInfo{font-size:12px;opacity:.9}
+
+/* ---- A4用紙（画面でも印刷でも同じ1枚） ---- */
+.sheet{position:relative;width:210mm;height:297mm;margin:14px auto;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.25);padding:9mm 10mm 14mm;display:flex;flex-direction:column;overflow:hidden}
+.phead{flex:none}
+.pbody{flex:1;min-height:0;position:relative;overflow:hidden}
+.pno{position:absolute;left:0;right:0;bottom:6mm;text-align:center;font-size:10px}
+.pbody>.blk:first-child{margin-top:0}
+.blk{margin-top:2mm}
+
+[contenteditable]{outline:none;white-space:pre-wrap;word-break:break-all}
+[contenteditable]:hover{background:#fffbe0}
+[contenteditable]:focus{background:#fff6b8}
+@media screen{[contenteditable]:empty::before{content:attr(data-ph);color:#b0b0b0}}
+
+.wordmark{font-weight:800;color:#2e7d32;font-size:16px;letter-spacing:.04em}
+.bar{height:14px;background:linear-gradient(90deg,#2e7d32 0%,#7cb342 45%,#f4d03f 80%,#fff 100%);margin:3px 0 0}
+
+.rtitle{font-size:24px;font-weight:700;text-align:center;margin:3mm 0;letter-spacing:.3em}
+table.info{width:100%;border-collapse:collapse;font-size:12px}
+table.info td{border:2px solid var(--line);padding:3px 6px;height:8mm}
+table.info td.k{width:16%;text-align:center;background:#fff3b0}
+
+.band{position:relative;color:#fff;border-bottom:3px solid #f4d03f;text-align:center;font-weight:700;font-size:14px;padding:3px 0;margin-top:3mm;background:var(--navy)}
+.band>div[contenteditable]{min-height:1.4em;padding:0 30%}
+.band>div[contenteditable]:hover,.band>div[contenteditable]:focus{color:#111}
+.band .sec-tools{position:absolute;right:4px;top:50%;transform:translateY(-50%);display:flex;gap:4px}
+
+.entry{display:flex;gap:4mm;position:relative}
+.photo{position:relative;background:#f4f8ec;border:1px solid #a9c28f;overflow:hidden;display:block}
+.entry .photo{flex:0 0 54%;aspect-ratio:1.34}
+.photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.photo .ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;color:#6b7f5a;cursor:pointer;padding:6px}
+.photo .cam{display:none;position:absolute;left:6px;bottom:6px;z-index:3;border:0;border-radius:8px;background:#2e7d32;color:#fff;font:inherit;font-size:15px;min-height:40px;padding:6px 14px;cursor:pointer}
+@media screen and (pointer:coarse){.photo .cam{display:block}}
+.photo input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.photo.has .ph{display:none}
+.photo .rm{position:absolute;right:4px;top:4px;z-index:2;border:0;background:rgba(0,0,0,.6);color:#fff;border-radius:50%;width:22px;height:22px;cursor:pointer;display:none;line-height:22px;padding:0}
+.photo.has .rm{display:block}
+.photo.has{cursor:pointer}
+.photo.drag{outline:3px dashed #2e7d32}
+table.dg{flex:1;border-collapse:collapse;font-size:11.5px;align-self:stretch}
+table.dg td{border:2px solid var(--line);padding:2px 4px;vertical-align:top}
+table.dg td.k{width:21%;text-align:center;vertical-align:middle;font-size:12px}
+table.dg tr.r0{height:11mm}
+table.dg tr.r1{height:22mm}
+table.dg tr.r2{height:34mm}
+.entry .sec-tools{position:absolute;left:4px;top:4px;z-index:3}
+.mini{font:inherit;font-size:12px;border:1px solid #9aa4bb;background:#fff;color:#223;border-radius:5px;padding:2px 8px;cursor:pointer}
+.mini.del{border-color:#d49a9a;color:#a33}
+
+.other{display:flex;border:2px solid var(--line);min-height:26mm}
+.other .lab{width:16%;background:#fff3b0;border-right:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-weight:700;padding:2px}
+.other .body{flex:1;padding:3px 6px;min-height:26mm}
+.tanto{text-align:center;font-size:11.5px;margin-top:3mm}
+
+
+/* ---- iPad・タブレット対応 ---- */
+#doc{transform-origin:top center}
+@media screen and (pointer:coarse){
+  .toolbar button{min-height:42px;font-size:15px;padding:8px 14px}
+  .mini{min-height:34px;font-size:14px;padding:4px 12px}
+  .photo .rm{width:34px;height:34px;line-height:34px;font-size:18px}
+  [contenteditable]:hover{background:none}
+  .toolbar .note{display:none}
+}
+html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+.photo,.photo .ph{-webkit-touch-callout:none}
+
+/* ---- 印刷：画面と同じA4を1枚ずつ ---- */
+@page{size:A4;margin:0}
+@media print{
+  html,body{background:#fff}
+  .toolbar,.no-print,.sec-tools,.photo .rm{display:none !important}
+  #doc{zoom:1 !important}
+  .sheet{margin:0;box-shadow:none;height:296.5mm;break-after:page;break-inside:avoid}
+  .sheet:last-child{break-after:auto}
+  [contenteditable]:hover,[contenteditable]:focus{background:none}
+  .photo{border-color:#999}
+  .photo .ph{display:none}
+  .photo:not(.has){background:#fff}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+
+<div class="toolbar no-print">
+  <b>点検報告書</b>
+  <button id="btnPrint">印刷 / PDFで保存</button>
+  <button id="addSec" class="sub">＋ 診断箇所（見出し）を追加</button>
+  <button id="btnSave" class="sub">このHTMLを保存（写真ごと）</button>
+  <button id="btnNew" class="sub">新しい報告書にする</button>
+  <span id="pageInfo"></span><span id="saveState"></span>
+  <span class="note">黄色くなる所はクリックして直接入力／A4で1枚ずつ自動で区切ります</span>
+</div>
+
+<div id="doc"></div>
+
+<script>
+(function(){
+  var KEY="teikiShindanReport.v3";
+  var doc=document.getElementById("doc");
+  var DEF_RESULT="異常ありません。";
+  var DEF_NOTE="得られた結果は弊社基準内です。現状では特に対応の必要はございません。次回の定期診断時にも再度確認いたします。";
+  var uid=0;function newSid(){return "s"+Date.now().toString(36)+(uid++)}
+
+  /* ---------- ブロック（A4に並べる最小単位） ---------- */
+  function photoHTML(cap){
+    return '<div class="photo" data-cap="'+cap+'"><img alt="" hidden><span class="ph"></span><button class="rm" type="button" title="写真をはずす">×</button><input type="file" accept="image/*"><input class="camin" type="file" accept="image/*" capture="environment"><button class="cam no-print" type="button">📷 撮影</button></div>';
+  }
+  function headBlock(){
+    return '<div class="blk head" data-sid="head"><div class="rtitle" contenteditable data-ph="タイトル">点検報告書</div>'+
+      '<table class="info">'+
+      '<tr><td class="k" contenteditable>お客様名</td><td contenteditable data-ph="例：半田　進　様邸"></td><td class="k" contenteditable>点検日</td><td contenteditable data-ph="例：2026/10/16"></td></tr>'+
+      '<tr><td class="k" contenteditable>所在地</td><td contenteditable data-ph="任意"></td><td class="k" contenteditable>点検担当</td><td contenteditable data-ph="例：関　翔太"></td></tr></table></div>';
+  }
+  function bandBlock(sid,title){
+    return '<div class="blk band" data-sid="'+sid+'" data-keep="1"><div contenteditable data-ph="見出し（例：外壁）">'+title+'</div>'+
+      '<span class="sec-tools no-print"><button class="mini" type="button" data-act="addEntry">＋診断欄</button><button class="mini del" type="button" data-act="delSec">見出し削除</button></span></div>';
+  }
+  function entryBlock(sid,item,res,note){
+    return '<div class="blk entry" data-sid="'+sid+'">'+photoHTML("写真をクリックして追加（ドラッグ＆ドロップも可）")+
+      '<table class="dg"><tr class="r0"><td class="k" contenteditable>診断項目</td><td contenteditable data-ph="診断項目">'+(item||"")+'</td></tr>'+
+      '<tr class="r1"><td class="k" contenteditable>診断結果</td><td contenteditable data-ph="診断結果">'+(res==null?DEF_RESULT:res)+'</td></tr>'+
+      '<tr class="r2"><td class="k" contenteditable>所見</td><td contenteditable data-ph="所見">'+(note==null?DEF_NOTE:note)+'</td></tr></table>'+
+      '<span class="sec-tools no-print"><button class="mini del" type="button" data-act="delEntry">この診断を削除</button></span></div>';
+  }
+  function closingBlock(){
+    return '<div class="blk closing" data-sid="closing"><div class="other"><div class="lab" contenteditable>総評</div><div class="body" contenteditable data-ph="全体を通してのコメント（任意）"></div></div>'+
+      '<div class="tanto"><span contenteditable data-ph="会社名・営業所名"></span></div></div>';
+  }
+  function sectionHTML(title,entries){
+    var sid=newSid();
+    return bandBlock(sid,title)+entries.map(function(e){return entryBlock(sid,e[0],e[1],e[2])}).join("");
+  }
+  function defaultBlocks(){
+    return headBlock()+
+      sectionHTML("基礎　立上り部",[["欠損　※深さ20mm以上の場合は要（判定）"],["ひび割れ　※幅0.5mm以上の場合は要（判定）"]])+
+      sectionHTML("外壁",[["クラック",DEF_RESULT,"特に必要ありません。"]])+
+      sectionHTML("屋根",[[""]])+
+      sectionHTML("バルコニー",[[""]])+
+      sectionHTML("給排水管・水まわり設備",[[""]])+
+      closingBlock();
+  }
+
+  /* ---------- A4ページ割り ---------- */
+  function newPage(){
+    var s=document.createElement("section");s.className="sheet";
+    s.innerHTML='<div class="phead"><span class="wordmark">&nbsp;</span><div class="bar"></div></div><div class="pbody"></div><div class="pno"></div>';
+    doc.appendChild(s);return s.querySelector(".pbody");
+  }
+  function caretInfo(){
+    var a=document.activeElement;
+    if(!a||!a.isContentEditable||!doc.contains(a))return null;
+    var all=[].slice.call(doc.querySelectorAll("[contenteditable]"));
+    var off=0,sel=getSelection();
+    if(sel.rangeCount){var r=sel.getRangeAt(0).cloneRange();r.selectNodeContents(a);r.setEnd(sel.getRangeAt(0).endContainer,sel.getRangeAt(0).endOffset);off=r.toString().length}
+    return {idx:all.indexOf(a),off:off};
+  }
+  function restoreCaret(c){
+    if(!c||c.idx<0)return;
+    var el=doc.querySelectorAll("[contenteditable]")[c.idx];if(!el)return;
+    el.focus();
+    var w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT),n,left=c.off,r=document.createRange();
+    while((n=w.nextNode())){if(n.length>=left){r.setStart(n,left);r.collapse(true);var s=getSelection();s.removeAllRanges();s.addRange(r);return}left-=n.length}
+  }
+  function paginate(){
+    var c=caretInfo();
+    var blocks=[].slice.call(doc.querySelectorAll(".blk"));
+    var keep=document.createDocumentFragment();
+    blocks.forEach(function(b){keep.appendChild(b)});
+    doc.innerHTML="";
+    var body=newPage();
+    blocks.forEach(function(b){
+      body.appendChild(b);
+      if(body.scrollHeight>body.clientHeight+1&&body.children.length>1){
+        body.removeChild(b);
+        var carry=[b],prev=body.lastElementChild;
+        if(prev&&prev.getAttribute("data-keep")&&body.children.length>1){body.removeChild(prev);carry.unshift(prev)}
+        body=newPage();
+        carry.forEach(function(x){body.appendChild(x)});
+      }
+    });
+    var sheets=doc.querySelectorAll(".sheet");
+    sheets.forEach(function(s,i){s.querySelector(".pno").textContent="- "+(i+1)+" -"});
+    document.getElementById("pageInfo").textContent="A4 "+sheets.length+"枚　";
+    setCaps();
+    restoreCaret(c);
+  }
+  function needRepaginate(){
+    var bodies=doc.querySelectorAll(".pbody");
+    for(var i=0;i<bodies.length;i++){
+      var b=bodies[i];
+      if(b.scrollHeight>b.clientHeight+1&&b.children.length>1)return true;
+      var nx=bodies[i+1];
+      if(nx&&nx.firstElementChild&&b.lastElementChild){
+        var used=b.lastElementChild.offsetTop+b.lastElementChild.offsetHeight;
+        var need=nx.firstElementChild.offsetHeight+(nx.firstElementChild.getAttribute("data-keep")&&nx.children[1]?nx.children[1].offsetHeight:0)+16;
+        if(used+need<b.clientHeight)return true;
+      }
+    }
+    return false;
+  }
+
+  /* ---------- 保存・復元 ---------- */
+  var baked=document.documentElement.getAttribute("data-baked")==="1";
+  var restored=false;
+  if(baked){restored=!!doc.querySelector(".blk")}
+  else{try{var sv=localStorage.getItem(KEY);if(sv){doc.innerHTML=sv;restored=!!doc.querySelector(".blk")}}catch(e){}}
+  if(!restored){doc.innerHTML=defaultBlocks()}
+
+  var st=document.getElementById("saveState"),timer=null;
+  function save(){
+    try{localStorage.setItem(KEY,doc.innerHTML);st.textContent="自動保存しました "+new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"})}
+    catch(e){st.textContent="自動保存できません（写真が多すぎます）。「このHTMLを保存」で保存してください"}
+  }
+  function later(){clearTimeout(timer);timer=setTimeout(function(){if(needRepaginate())paginate();save()},700)}
+  function setCaps(){document.querySelectorAll(".photo").forEach(function(p){
+    p.querySelector(".ph").textContent="📷 "+(p.getAttribute("data-cap")||"写真を追加");
+    var im=p.querySelector("img");var has=!!(im&&im.getAttribute("src"));
+    p.classList.toggle("has",has);if(has)im.hidden=false;
+  })}
+  /* 画面幅に合わせてA4を縮小（iPad等）。印刷は常に等倍 */
+  function fit(){
+    var w=Math.max(320,document.documentElement.clientWidth-16),a4=794;
+    var z=Math.min(1,w/a4);
+    doc.style.zoom=z<1?z:"";
+  }
+  fit();window.addEventListener("resize",fit);window.addEventListener("orientationchange",fit);
+  paginate();
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){paginate()});
+
+  /* ---------- 写真 ---------- */
+  function loadPhoto(label,file){
+    if(!file||!/^image\//.test(file.type))return;
+    var rd=new FileReader();
+    rd.onload=function(){
+      var im=new Image();
+      im.onload=function(){
+        var max=1400,r=Math.min(1,max/Math.max(im.width,im.height));
+        var c=document.createElement("canvas");c.width=Math.round(im.width*r);c.height=Math.round(im.height*r);
+        c.getContext("2d").drawImage(im,0,0,c.width,c.height);
+        var t=label.querySelector("img");t.src=c.toDataURL("image/jpeg",0.82);t.hidden=false;
+        label.classList.add("has");save();
+      };
+      im.src=rd.result;
+    };
+    rd.readAsDataURL(file);
+  }
+  doc.addEventListener("change",function(e){
+    var t=e.target;
+    if(t.matches('.photo input[type=file]')){loadPhoto(t.closest(".photo"),t.files[0]);t.value=""}
+  });
+  function lastOfSid(sid){var l=null;doc.querySelectorAll(".blk").forEach(function(b){if(b.getAttribute("data-sid")===sid)l=b});return l}
+  doc.addEventListener("click",function(e){
+    var t=e.target;
+    if(t.matches(".photo .rm")){e.preventDefault();var p=t.closest(".photo");var im=p.querySelector("img");im.removeAttribute("src");im.hidden=true;p.classList.remove("has");save();return}
+    if(t.matches(".photo .cam")){e.preventDefault();t.closest(".photo").querySelector(".camin").click();return}
+    var ph=t.closest(".photo");
+    if(ph&&!t.matches("input")){e.preventDefault();ph.querySelector("input").click();return}
+    var a=t.getAttribute&&t.getAttribute("data-act");
+    var blk=t.closest&&t.closest(".blk");
+    if(a==="addEntry"){lastOfSid(blk.getAttribute("data-sid")).insertAdjacentHTML("afterend",entryBlock(blk.getAttribute("data-sid"),""));paginate();save()}
+    if(a==="delEntry"){if(confirm("この写真と診断欄を削除します。よろしいですか？")){blk.remove();paginate();save()}}
+    if(a==="delSec"){if(confirm("この見出しの写真・診断欄をすべて削除します。よろしいですか？")){var sid=blk.getAttribute("data-sid");[].slice.call(doc.querySelectorAll(".blk")).forEach(function(b){if(b.getAttribute("data-sid")===sid)b.remove()});paginate();save()}}
+  });
+  doc.addEventListener("input",later);
+  doc.addEventListener("paste",function(e){
+    if(e.target.isContentEditable){e.preventDefault();var s=(e.clipboardData||window.clipboardData).getData("text/plain");document.execCommand("insertText",false,s)}
+  });
+  ["dragover","dragleave","drop"].forEach(function(ev){
+    doc.addEventListener(ev,function(e){
+      var p=e.target.closest&&e.target.closest(".photo");if(!p)return;
+      e.preventDefault();
+      if(ev==="dragover")p.classList.add("drag");else p.classList.remove("drag");
+      if(ev==="drop")loadPhoto(p,e.dataTransfer.files[0]);
+    });
+  });
+
+  document.getElementById("addSec").addEventListener("click",function(){
+    var cl=doc.querySelector(".blk.closing");
+    cl.insertAdjacentHTML("beforebegin",sectionHTML("",[[""]]));
+    paginate();save();
+  });
+  document.getElementById("btnPrint").addEventListener("click",function(){clearTimeout(timer);if(needRepaginate())paginate();save();window.print()});
+  document.getElementById("btnNew").addEventListener("click",function(){
+    if(confirm("今の内容を消して、新しい報告書にします。よろしいですか？\n（必要なら先に「このHTMLを保存」をしてください）")){
+      try{localStorage.removeItem(KEY)}catch(e){}
+      document.documentElement.removeAttribute("data-baked");
+      location.reload();
+    }
+  });
+  document.getElementById("btnSave").addEventListener("click",function(){
+    paginate();save();
+    var root=document.documentElement;root.setAttribute("data-baked","1");
+    var html="<!DOCTYPE html>\n"+root.outerHTML;
+    root.removeAttribute("data-baked");
+    var cell=doc.querySelector("table.info td:nth-child(2)");
+    var owner=((cell&&cell.textContent)||"").replace(/\s|　/g,"")||"報告書";
+    var a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([html],{type:"text/html"}));
+    a.download="点検報告書_"+owner+".html";document.body.appendChild(a);a.click();a.remove();
+  });
+})();
+</script>
+</body>
+</html>
