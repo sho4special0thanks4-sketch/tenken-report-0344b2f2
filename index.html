@@ -77,6 +77,17 @@ table.dg tr.r2{height:34mm}
 .tanto{text-align:center;font-size:11.5px;margin-top:3mm}
 
 
+/* ---- 定型文プルダウン（画面のみ） ---- */
+#tmplBtn{position:fixed;z-index:30;display:none;border:1px solid #2e7d32;background:#fff;color:#2e7d32;border-radius:6px;font:inherit;font-size:12px;line-height:1;padding:5px 8px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+#tmplMenu{position:fixed;z-index:31;display:none;background:#fff;border:1px solid #2e7d32;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.35);max-height:70vh;overflow:auto;width:min(92vw,440px)}
+#tmplMenu .ttl{padding:6px 12px;font-size:12px;background:#eef6e6;color:#2e7d32;font-weight:700}
+#tmplMenu button{display:block;width:100%;text-align:left;border:0;border-top:1px solid #e1ecd5;background:#fff;font:inherit;font-size:14px;line-height:1.45;padding:10px 12px;cursor:pointer}
+#tmplMenu button:hover{background:#fff6b8}
+#tmplMenu button.clr{color:#a33}
+@media screen and (pointer:coarse){#tmplBtn{font-size:15px;padding:9px 12px}#tmplMenu button{font-size:16px;padding:13px 14px}}
+@media print{#tmplBtn,#tmplMenu{display:none !important}}
+.cap #tmplBtn,.cap #tmplMenu{display:none !important}
+
 /* ---- iPad・タブレット対応 ---- */
 #doc{transform-origin:top center}
 @media screen and (pointer:coarse){
@@ -322,6 +333,71 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
       if(ev==="drop")loadPhoto(p,e.dataTransfer.files[0]);
     });
   });
+
+  /* ---------- 定型文プルダウン（欄をタップすると「▼ 定型文」が出る。自由入力はそのまま可能） ---------- */
+  (function(){
+    ["tmplBtn","tmplMenu"].forEach(function(i){var o=document.getElementById(i);if(o)o.remove()});
+    function esc(t){return String(t).replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c]})}
+    var MAINT="異常ありませんがメンテナンス時期を迎えています。この機会にご検討ください。",DUE="メンテナンスの時期は迎えております。この機会にご検討ください。";
+    var LISTS={
+      res:["異常ありません。",MAINT,DUE],
+      note:[DEF_NOTE,"特に必要ありません。",MAINT,DUE]
+    };
+    var TITLES={res:"診断結果の定型文",note:"所見の定型文"};
+    var btn=document.createElement("button");btn.id="tmplBtn";btn.type="button";btn.textContent="▼ 定型文";document.body.appendChild(btn);
+    var menu=document.createElement("div");menu.id="tmplMenu";document.body.appendChild(menu);
+    var cur=null,hideT=null;
+    function kind(el){
+      if(!el||!el.matches)return null;
+      if(el.matches("table.dg tr.r1 td:nth-child(2)"))return "res";
+      if(el.matches("table.dg tr.r2 td:nth-child(2)"))return "note";
+      return null;
+    }
+    function place(){
+      if(!cur||!document.body.contains(cur)){btn.style.display="none";return}
+      var r=cur.getBoundingClientRect();
+      if(r.bottom<0||r.top>innerHeight){btn.style.display="none";return}
+      btn.style.display="block";
+      var w=btn.offsetWidth,h=btn.offsetHeight;
+      btn.style.left=Math.max(4,Math.min(innerWidth-w-4,r.right-w-3))+"px";
+      btn.style.top=Math.max(4,r.height>h*2.2?r.bottom-h-3:r.top+(r.height-h)/2)+"px";
+    }
+    function closeMenu(){menu.style.display="none"}
+    function openMenu(){
+      var k=kind(cur);if(!k)return;
+      menu.innerHTML='<div class="ttl">'+TITLES[k]+'（選ぶとこの欄の文章が入れ替わります）</div>'+
+        LISTS[k].map(function(t,i){return '<button type="button" data-i="'+i+'">'+esc(t)+'</button>'}).join("")+
+        '<button type="button" class="clr" data-i="-1">この欄の文章を消す</button>';
+      menu.style.display="block";
+      var br=btn.getBoundingClientRect(),mh=menu.offsetHeight,mw=menu.offsetWidth;
+      menu.style.left=Math.max(4,Math.min(innerWidth-mw-4,br.right-mw))+"px";
+      var below=innerHeight-br.bottom-6;
+      menu.style.top=(below>=mh||below>br.top?br.bottom+4:Math.max(4,br.top-mh-4))+"px";
+      menu.style.maxHeight=Math.max(160,Math.max(below,br.top-10))+"px";
+    }
+    function keepFocus(e){e.preventDefault()}
+    ["mousedown","touchstart"].forEach(function(ev){btn.addEventListener(ev,keepFocus,{passive:false});menu.addEventListener(ev,keepFocus,{passive:false})});
+    btn.addEventListener("click",function(){menu.style.display==="block"?closeMenu():openMenu()});
+    menu.addEventListener("click",function(e){
+      var b=e.target.closest("button[data-i]");if(!b||!cur)return;
+      var i=+b.getAttribute("data-i"),k=kind(cur);
+      cur.textContent=i<0?"":LISTS[k][i];
+      cur.focus();
+      var rg=document.createRange();rg.selectNodeContents(cur);rg.collapse(false);var sl=getSelection();sl.removeAllRanges();sl.addRange(rg);
+      cur.dispatchEvent(new Event("input",{bubbles:true}));
+      closeMenu();place();
+    });
+    doc.addEventListener("focusin",function(e){
+      var el=e.target.closest&&e.target.closest("[contenteditable]");
+      clearTimeout(hideT);
+      if(kind(el)){cur=el;closeMenu();place()}else{cur=null;btn.style.display="none";closeMenu()}
+    });
+    doc.addEventListener("focusout",function(){clearTimeout(hideT);hideT=setTimeout(function(){if(menu.style.display!=="block"&&document.activeElement!==btn){cur=null;btn.style.display="none"}},250)});
+    document.addEventListener("mousedown",function(e){if(menu.style.display==="block"&&!menu.contains(e.target)&&e.target!==btn)closeMenu()});
+    document.addEventListener("touchstart",function(e){if(menu.style.display==="block"&&!menu.contains(e.target)&&e.target!==btn)closeMenu()},{passive:true});
+    window.addEventListener("scroll",function(){place();closeMenu()},true);
+    window.addEventListener("resize",function(){place();closeMenu()});
+  })();
 
   document.getElementById("addSec").addEventListener("click",function(){
     var cl=doc.querySelector(".blk.closing");
