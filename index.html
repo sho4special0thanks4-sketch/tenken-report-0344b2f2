@@ -86,6 +86,13 @@ table.dg tr.r2{height:34mm}
 #tmplMenu button.clr{color:#a33}
 @media screen and (pointer:coarse){#tmplBtn{font-size:15px;padding:9px 12px}#tmplMenu button{font-size:16px;padding:13px 14px}}
 @media print{#tmplBtn,#tmplMenu{display:none !important}}
+/* ---- 日付のカレンダーボタン（画面のみ） ---- */
+#dateBtn{position:fixed;z-index:30;display:none;overflow:hidden;border:1px solid #2e7d32;background:#fff;color:#2e7d32;border-radius:6px;font:inherit;font-size:12px;line-height:1;padding:5px 8px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+#dateBtn input{position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0;margin:0}
+@media screen and (pointer:coarse){#dateBtn{font-size:15px;padding:9px 12px}}
+@media print{#dateBtn{display:none !important}}
+.cap #dateBtn{display:none !important}
+
 .cap #tmplBtn,.cap #tmplMenu{display:none !important}
 
 /* ---- iPad・タブレット対応 ---- */
@@ -335,6 +342,39 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
   });
 
   /* ---------- 定型文プルダウン（欄をタップすると「▼ 定型文」が出る。自由入力はそのまま可能） ---------- */
+  /* ---------- 日付欄：カレンダーから選ぶ（手入力もそのまま可） ---------- */
+  (function(){
+    var o=document.getElementById("dateBtn");if(o)o.remove();
+    var SEL='td[data-ph*="2026/10/16"]';
+    var wrap=document.createElement("label");wrap.id="dateBtn";wrap.textContent="📅 日付";
+    var inp=document.createElement("input");inp.type="date";inp.setAttribute("aria-label","日付を選ぶ");wrap.appendChild(inp);document.body.appendChild(wrap);
+    var cur=null,hideT=null,picking=false;
+    function pad(n){return ("0"+n).slice(-2)}
+    function toIso(t){var m=/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/.exec((t||"").replace(/[０-９]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-65248)}));return m?m[1]+"-"+pad(m[2])+"-"+pad(m[3]):""}
+    function place(){
+      if(!cur||!document.body.contains(cur)){wrap.style.display="none";return}
+      var r=cur.getBoundingClientRect();
+      if(r.bottom<0||r.top>innerHeight){wrap.style.display="none";return}
+      wrap.style.display="block";
+      var w=wrap.offsetWidth,h=wrap.offsetHeight;
+      wrap.style.left=Math.max(4,Math.min(innerWidth-w-4,r.right-w-3))+"px";
+      wrap.style.top=Math.max(4,r.top+(r.height-h)/2)+"px";
+    }
+    function hide(){cur=null;wrap.style.display="none"}
+    inp.addEventListener("click",function(){picking=true;try{if(inp.showPicker)inp.showPicker()}catch(e){}});
+    inp.addEventListener("change",function(){
+      if(cur&&inp.value){var p=inp.value.split("-");cur.textContent=p[0]+"/"+p[1]+"/"+p[2];cur.dispatchEvent(new Event("input",{bubbles:true}))}
+      picking=false;place();
+    });
+    inp.addEventListener("blur",function(){picking=false;clearTimeout(hideT);hideT=setTimeout(function(){if(!(document.activeElement&&document.activeElement.closest&&document.activeElement.closest(SEL)))hide()},250)});
+    document.addEventListener("focusin",function(e){
+      var c=e.target.closest&&e.target.closest(SEL);clearTimeout(hideT);
+      if(c){cur=c;inp.value=toIso(c.textContent);place()}else if(e.target!==inp&&!picking)hide();
+    });
+    document.addEventListener("focusout",function(){clearTimeout(hideT);hideT=setTimeout(function(){if(picking||document.activeElement===inp)return;if(document.activeElement&&document.activeElement.closest&&document.activeElement.closest(SEL))return;hide()},250)});
+    window.addEventListener("scroll",place,true);window.addEventListener("resize",place);
+  })();
+
   (function(){
     ["tmplBtn","tmplMenu"].forEach(function(i){var o=document.getElementById(i);if(o)o.remove()});
     function esc(t){return String(t).replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c]})}
