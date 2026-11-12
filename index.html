@@ -376,7 +376,8 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
       menu.style.maxHeight=Math.max(160,Math.max(below,br.top-10))+"px";
     }
     function keepFocus(e){e.preventDefault()}
-    ["mousedown","touchstart"].forEach(function(ev){btn.addEventListener(ev,keepFocus,{passive:false});menu.addEventListener(ev,keepFocus,{passive:false})});
+    /* touchstart で preventDefault するとiPadではclickが発生しないので、mousedownだけで止める */
+    btn.addEventListener("mousedown",keepFocus);menu.addEventListener("mousedown",keepFocus);
     btn.addEventListener("click",function(){menu.style.display==="block"?closeMenu():openMenu()});
     menu.addEventListener("click",function(e){
       var b=e.target.closest("button[data-i]");if(!b||!cur)return;
@@ -395,7 +396,7 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
     doc.addEventListener("focusout",function(){clearTimeout(hideT);hideT=setTimeout(function(){if(menu.style.display!=="block"&&document.activeElement!==btn){cur=null;btn.style.display="none"}},250)});
     document.addEventListener("mousedown",function(e){if(menu.style.display==="block"&&!menu.contains(e.target)&&e.target!==btn)closeMenu()});
     document.addEventListener("touchstart",function(e){if(menu.style.display==="block"&&!menu.contains(e.target)&&e.target!==btn)closeMenu()},{passive:true});
-    window.addEventListener("scroll",function(){place();closeMenu()},true);
+    window.addEventListener("scroll",function(e){if(menu.contains(e.target))return;place();closeMenu()},true);
     window.addEventListener("resize",function(){place();closeMenu()});
   })();
 
