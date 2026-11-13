@@ -247,7 +247,7 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
     while((n=w.nextNode())){if(n.length>=left){r.setStart(n,left);r.collapse(true);var s=getSelection();s.removeAllRanges();s.addRange(r);return}left-=n.length}
   }
   function paginate(){
-    var c=caretInfo();
+    var c=caretInfo(),sy=window.pageYOffset,sx=window.pageXOffset;  /* 組み直す間にページが空になり、表示位置が上へ飛ぶのを防ぐ */
     var blocks=[].slice.call(doc.querySelectorAll(".blk"));
     var keep=document.createDocumentFragment();
     blocks.forEach(function(b){keep.appendChild(b)});
@@ -268,6 +268,7 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
     document.getElementById("pageInfo").textContent="A4 "+sheets.length+"枚　";
     setCaps();
     restoreCaret(c);
+    window.scrollTo(sx,sy);
   }
   function needRepaginate(){
     var bodies=doc.querySelectorAll(".pbody");
