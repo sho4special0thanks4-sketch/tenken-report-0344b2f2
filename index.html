@@ -86,6 +86,24 @@ table.dg tr.r2{height:34mm}
 #tmplMenu button.clr{color:#a33}
 @media screen and (pointer:coarse){#tmplBtn{font-size:15px;padding:9px 12px}#tmplMenu button{font-size:16px;padding:13px 14px}}
 @media print{#tmplBtn,#tmplMenu{display:none !important}}
+/* ---- お客様情報パネル・ひな形メニュー（画面のみ） ---- */
+#infobar{max-width:794px;margin:10px auto 0;background:#fff;border:2px solid #2e7d32;border-radius:10px;padding:8px 12px}
+#infobar summary{cursor:pointer;font-weight:700;color:#2e7d32;font-size:14px;padding:4px 0}
+#infobar .ibgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px 12px;margin-top:6px}
+#infobar label{display:flex;flex-direction:column;font-size:12px;color:#445;gap:2px}
+#infobar input{font:inherit;font-size:16px;padding:7px 8px;border:1px solid #9aa4bb;border-radius:6px;background:#fffbe0;min-height:40px;color:#111}
+#ibHint{font-size:13px;color:#2e7d32;margin-top:6px}
+#ibHint:empty{display:none}
+.ibnote{background:#eef1fb;border-radius:6px;padding:6px 10px;margin:4px 0 6px;font-size:13px;color:#223;line-height:1.7}
+.ibnote button{font:inherit;font-size:13px;margin-left:8px;border:1px solid #2e7d32;background:#fff;color:#2e7d32;border-radius:6px;padding:4px 10px;cursor:pointer}
+#secMenu{position:fixed;z-index:35;display:none;background:#fff;border:1px solid #2e7d32;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.35);max-height:70vh;overflow:auto;width:min(92vw,340px)}
+#secMenu .ttl{padding:6px 12px;font-size:12px;background:#eef1fb;color:#2e7d32;font-weight:700}
+#secMenu button{display:block;width:100%;text-align:left;border:0;border-top:1px solid #e1e5f3;background:#fff;font:inherit;font-size:15px;padding:12px 14px;cursor:pointer}
+#secMenu button:hover{background:#fff6b8}
+@media screen and (pointer:coarse){.toolbar button{min-height:46px}.mini{min-height:40px}.photo .cam{min-height:46px}#secMenu button{font-size:17px;padding:15px 14px}}
+@media print{#infobar,#secMenu{display:none !important}}
+.cap #infobar,.cap #secMenu{display:none !important}
+
 /* ---- 日付のカレンダーボタン（画面のみ） ---- */
 #dateBtn{position:fixed;z-index:30;display:none;overflow:hidden;border:1px solid #2e7d32;background:#fff;color:#2e7d32;border-radius:6px;font:inherit;font-size:12px;line-height:1;padding:5px 8px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.3)}
 #dateBtn input{position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0;margin:0}
@@ -275,11 +293,19 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
 
   var st=document.getElementById("saveState"),timer=null;
   function save(){
-    try{localStorage.setItem(KEY,doc.innerHTML);st.textContent="自動保存しました "+new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"})}
-    catch(e){st.textContent="自動保存できません（写真が多すぎます）。「このHTMLを保存」で保存してください"}
+    var snap=ibSnap(),now=new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"});
+    try{localStorage.setItem(KEY,snap);localStorage.setItem(KEY+".t",String(Date.now()));localStorage.removeItem(KEY+".idb");st.textContent="自動保存しました "+now}
+    catch(e){
+      try{localStorage.removeItem(KEY)}catch(e2){}
+      idbPut(KEY,snap,function(ok){
+        if(ok){try{localStorage.setItem(KEY+".idb","1");localStorage.setItem(KEY+".t",String(Date.now()))}catch(e3){}st.textContent="自動保存しました（大容量保存） "+now}
+        else st.textContent="自動保存できません（写真が多すぎます）。「このHTMLを保存」で保存してください";
+      });
+    }
   }
   function later(){clearTimeout(timer);timer=setTimeout(function(){if(needRepaginate())paginate();save()},700)}
   function setCaps(){document.querySelectorAll(".photo").forEach(function(p){
+    var fi=p.querySelector("input:not(.camin)");if(fi)fi.multiple=true;
     p.querySelector(".ph").textContent="📷 "+(p.getAttribute("data-cap")||"写真を追加");
     var im=p.querySelector("img");var has=!!(im&&im.getAttribute("src"));
     p.classList.toggle("has",has);if(has)im.hidden=false;
@@ -313,7 +339,7 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
   }
   doc.addEventListener("change",function(e){
     var t=e.target;
-    if(t.matches('.photo input[type=file]')){loadPhoto(t.closest(".photo"),t.files[0]);t.value=""}
+    if(t.matches('.photo input[type=file]')){handlePhotoFiles(t);t.value=""}
   });
   function lastOfSid(sid){var l=null;doc.querySelectorAll(".blk").forEach(function(b){if(b.getAttribute("data-sid")===sid)l=b});return l}
   doc.addEventListener("click",function(e){
@@ -342,6 +368,190 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
   });
 
   /* ---------- 定型文プルダウン（欄をタップすると「▼ 定型文」が出る。自由入力はそのまま可能） ---------- */
+  /* ====== 共通の使いやすさ部品（お客様情報の一括入力／診断箇所のひな形／複数写真／自動保存の復元／PDF軽量版） ====== */
+  var IB_FIELDS=[{id:"name",label:"お客様名",type:"text",ph:"例：半田　進　様邸",cell:function(){return document.querySelector('#doc table.info tr:nth-child(1) td:nth-child(2)')}},
+ {id:"date",label:"点検日",type:"date",cell:function(){return document.querySelector('#doc table.info tr:nth-child(1) td:nth-child(4)')}},
+ {id:"place",label:"所在地",type:"text",ph:"任意",cell:function(){return document.querySelector('#doc table.info tr:nth-child(2) td:nth-child(2)')}},
+ {id:"tanto",label:"点検担当",type:"text",ph:"例：関　翔太",remember:true,cell:function(){return document.querySelector('#doc table.info tr:nth-child(2) td:nth-child(4)')}}];
+  var IB_PRESETS=[["基礎（立上り部）","基礎　立上り部",[["欠損　※深さ20mm以上の場合は要（判定）"],["ひび割れ　※幅0.5mm以上の場合は要（判定）"]]],
+ ["外壁","外壁",[["クラック",DEF_RESULT,"特に必要ありません。"]]],
+ ["屋根","屋根",[[""]]],["バルコニー","バルコニー",[[""]]],["コーキング","コーキング",[[""]]],
+ ["給排水管・水まわり設備","給排水管・水まわり設備",[[""]]],["小屋裏","小屋裏",[[""]]],["床下","床下",[[""]]],["白紙の見出し","",[[""]]]];
+  function ibItemOf(blk){return (blk.querySelector("table.dg tr.r0 td:nth-child(2)")||{}).textContent||""}
+  function ibInsertSection(html){doc.querySelector(".blk.closing").insertAdjacentHTML("beforebegin",html)}
+  function ibPad(n){return ("0"+n).slice(-2)}
+  function ibIso(t){
+    var m=/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/.exec((t||"").replace(/[０-９]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-65248)}));
+    if(!m||+m[2]<1||+m[2]>12||+m[3]<1||+m[3]>31)return "";
+    return m[1]+"-"+ibPad(m[2])+"-"+ibPad(m[3]);
+  }
+  function ibToday(){var d=new Date();return d.getFullYear()+"/"+ibPad(d.getMonth()+1)+"/"+ibPad(d.getDate())}
+  function ibField(id){for(var i=0;i<IB_FIELDS.length;i++)if(IB_FIELDS[i].id===id)return IB_FIELDS[i];return null}
+  function ibInput(f){return document.getElementById("ib_"+f.id)}
+
+  /* --- 大きな保存領域(IndexedDB)：localStorageに入りきらないとき用 --- */
+  function idbOpen(cb){
+    try{var rq=indexedDB.open("ftReportStore",1);
+      rq.onupgradeneeded=function(){rq.result.createObjectStore("kv")};
+      rq.onsuccess=function(){cb(rq.result)};rq.onerror=function(){cb(null)};
+    }catch(e){cb(null)}
+  }
+  function idbPut(k,v,done){idbOpen(function(db){if(!db){done&&done(false);return}
+    try{var tx=db.transaction("kv","readwrite");tx.objectStore("kv").put(v,k);tx.oncomplete=function(){db.close();done&&done(true)};tx.onerror=function(){db.close();done&&done(false)}}catch(e){done&&done(false)}})}
+  function idbGet(k,done){idbOpen(function(db){if(!db){done(null);return}
+    try{var rq=db.transaction("kv").objectStore("kv").get(k);rq.onsuccess=function(){db.close();done(rq.result||null)};rq.onerror=function(){db.close();done(null)}}catch(e){done(null)}})}
+  function idbDel(k){idbOpen(function(db){if(!db)return;try{var tx=db.transaction("kv","readwrite");tx.objectStore("kv").delete(k);tx.oncomplete=function(){db.close()}}catch(e){}})}
+
+  function ibSnap(){return doc.innerHTML}
+  function ibApplySnap(s){doc.innerHTML=s;paginate()}
+
+  /* --- 複数の写真を一度に選ぶ：2枚目以降は同じ診断項目の欄が自動で増えて入る --- */
+  function handlePhotoFiles(inp){
+    var files=[].slice.call(inp.files||[]);if(!files.length)return;
+    var label=inp.closest(".photo"),blk=label.closest(".blk");
+    loadPhoto(label,files[0]);
+    if(files.length>1&&blk&&blk.classList.contains("entry")){
+      var sid=blk.getAttribute("data-sid"),item=ibItemOf(blk).replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c]}),after=blk,labels=[];
+      files.slice(1).forEach(function(){after.insertAdjacentHTML("afterend",entryBlock(sid,item));after=after.nextElementSibling;labels.push(after.querySelector(".photo"))});
+      paginate();
+      labels.forEach(function(l,i){loadPhoto(l,files[i+1])});
+    }
+  }
+
+  function ibCleanHTML(el){var c=el.cloneNode(true);["tmplBtn","tmplMenu","rowTools","secMenu","dateBtn","infobar","btnPdfLight","pdfBusy"].forEach(function(i){var x=c.querySelector("#"+i);if(x)x.remove()});return c.outerHTML}
+  /* --- PDFを作る（失敗したら軽量版で自動やり直し） --- */
+  function ibMakePdf(light){
+    buildPdf(light).then(function(pdf){
+      var blob=pdf.output("blob"),name=pdfName();
+      if(light)name=name.replace(/\.pdf$/,"_軽量.pdf");
+      var file=new File([blob],name,{type:"application/pdf"});
+      if(navigator.canShare&&navigator.canShare({files:[file]})){
+        navigator.share({files:[file],title:name}).catch(function(){pdf.save(name)});
+      }else{pdf.save(name)}
+    }).catch(function(e){
+      if(e&&e.message==="lib")return;
+      if(!light){alert("PDFを作成できませんでした（写真が多いと、iPadの記憶容量が足りなくなることがあります）。画質を下げた「軽量版」で作り直します。");ibMakePdf(true)}
+      else alert("軽量版でもPDFを作成できませんでした。「印刷 / PDFで保存」を使うか、「このHTMLを保存」で保存してください。");
+    });
+  }
+
+  /* --- お客様情報パネル／診断箇所のひな形メニュー／キーボードで隠れない --- */
+  function ibBanner(fromSaved){
+    var m=document.getElementById("ibMsg");if(!m)return;m.innerHTML="";
+    if(fromSaved){
+      var t="";try{var ts=+localStorage.getItem(KEY+".t");if(ts){var d=new Date(ts);t="（保存："+(d.getMonth()+1)+"/"+d.getDate()+" "+d.getHours()+":"+ibPad(d.getMinutes())+"）"}}catch(e){}
+      m.innerHTML='<div class="ibnote">前回の続きを開いています'+t+'<button type="button" id="ibNew">新しい報告書にする</button><button type="button" id="ibOk">このまま続ける</button></div>';
+      document.getElementById("ibNew").onclick=function(){document.getElementById("btnNew").click()};
+      document.getElementById("ibOk").onclick=function(){m.innerHTML=""};
+    }else{
+      var seen=false;try{seen=localStorage.getItem("ftHintSeen")==="1"}catch(e){}
+      if(!seen){
+        m.innerHTML='<div class="ibnote">使い方：①ここにお客様情報を入れる　②下の黄色い欄をタップして入力・📷で撮影　③上の「PDFファイルを作成」で共有<button type="button" id="ibOk">閉じる</button></div>';
+        document.getElementById("ibOk").onclick=function(){m.innerHTML="";try{localStorage.setItem("ftHintSeen","1")}catch(e){}};
+      }
+    }
+  }
+  function ibFromCell(f){
+    var c=f.cell(),inp=ibInput(f);if(!c||!inp)return;
+    var v=f.type==="date"?ibIso(c.textContent):c.textContent.replace(/^\s+|\s+$/g,"");
+    if(inp.value!==v&&document.activeElement!==inp)inp.value=v;
+  }
+  function ibToCell(f,inp){
+    var c=f.cell();if(!c)return;
+    var v=inp.value;
+    if(f.type==="date")v=v?v.replace(/-/g,"/"):"";
+    if(f.remember){try{localStorage.setItem("ftTanto",v)}catch(e){}}
+    c.textContent=v;c.dispatchEvent(new Event("input",{bubbles:true}));
+  }
+  function ibRefresh(fromSaved){IB_FIELDS.forEach(ibFromCell);if(fromSaved!==undefined)ibBanner(fromSaved)}
+  function ibYear(){
+    var h=document.getElementById("ibHint"),fh=ibField("hand"),fd=ibField("date");if(!h||!fh||!fd)return;
+    var hc=fh.cell(),dc=fd.cell(),a=ibIso(hc&&hc.textContent),b=ibIso(dc&&dc.textContent);
+    if(!a||!b){h.textContent="";return}
+    var y=(new Date(b)-new Date(a))/31557600000;
+    if(y<0){h.textContent="診断日がお引渡し日より前になっています。日付を確かめてください。";return}
+    var n=Math.round(y/5)*5,yc=document.querySelector('#cover [data-f="3"]'),ys=y.toFixed(1).replace(/\.0$/,"");
+    if(n>=20&&n<=60&&Math.abs(y-n)<=2.5&&yc){
+      if(yc.textContent!==n+"年診断"){yc.textContent=n+"年診断";yc.dispatchEvent(new Event("input",{bubbles:true}))}
+      h.textContent="お引渡しから約"+ys+"年 → 「"+n+"年診断」に設定しました（違うときは表紙の年数で直せます）";
+    }else{
+      h.textContent="お引渡しから約"+ys+"年。20〜60年（5年刻み）の区分に当てはまらないため、年数は変えていません。";
+    }
+  }
+  (function(){
+    var old=document.getElementById("infobar");if(old)old.remove();
+    var oldm=document.getElementById("secMenu");if(oldm)oldm.remove();
+    var oldl=document.getElementById("btnPdfLight");if(oldl)oldl.remove();
+    var box=document.createElement("details");box.id="infobar";box.className="no-print";box.open=true;
+    var h='<summary>お客様情報（ここに入れると報告書の該当欄に入ります）</summary><div id="ibMsg"></div><div class="ibgrid">';
+    IB_FIELDS.forEach(function(f){h+='<label>'+f.label+'<input id="ib_'+f.id+'" type="'+f.type+'"'+(f.ph?' placeholder="'+f.ph+'"':'')+' autocomplete="off"></label>'});
+    h+='</div><div id="ibHint"></div>';
+    box.innerHTML=h;
+    var tb=document.querySelector(".toolbar");tb.parentNode.insertBefore(box,tb.nextSibling);
+    IB_FIELDS.forEach(function(f){
+      var inp=ibInput(f),fn=function(){ibToCell(f,inp)};
+      inp.addEventListener("input",fn);if(f.type==="date")inp.addEventListener("change",fn);
+    });
+    document.addEventListener("input",function(e){
+      IB_FIELDS.forEach(function(f){if(f.cell()===e.target)ibFromCell(f)});
+      var fh=ibField("hand"),fd=ibField("date");
+      if(fh&&((fh.cell()===e.target)||(fd.cell()===e.target)))ibYear();
+    });
+    /* 担当者名は前回の入力を覚えておく（空のときだけ入れる） */
+    IB_FIELDS.forEach(function(f){
+      if(!f.remember)return;var c=f.cell();
+      try{var r=localStorage.getItem("ftTanto");if(c&&r&&!c.textContent.replace(/\s/g,""))c.textContent=r}catch(e){}
+    });
+    if(true){var dc=ibField("date").cell();if(dc&&!restored&&!dc.textContent.replace(/\s/g,""))dc.textContent=ibToday()}
+    ibRefresh(restored&&!baked);
+
+    /* 診断箇所のひな形メニュー */
+    var menu=document.createElement("div");menu.id="secMenu";document.body.appendChild(menu);
+    menu.innerHTML='<div class="ttl">追加する診断箇所を選んでください</div>'+IB_PRESETS.map(function(p,i){return '<button type="button" data-i="'+i+'">'+p[0]+'</button>'}).join("");
+    var ab=document.getElementById("addSec");
+    ab.textContent="＋ 診断箇所を追加 ▼";
+    ab.addEventListener("click",function(e){
+      e.stopPropagation();
+      if(menu.style.display==="block"){menu.style.display="none";return}
+      var r=ab.getBoundingClientRect();menu.style.display="block";
+      menu.style.left=Math.max(4,Math.min(innerWidth-menu.offsetWidth-4,r.left))+"px";menu.style.top=(r.bottom+4)+"px";
+    });
+    menu.addEventListener("click",function(e){
+      var b=e.target.closest("button[data-i]");if(!b)return;
+      var p=IB_PRESETS[+b.getAttribute("data-i")];menu.style.display="none";
+      ibInsertSection(sectionHTML(p[1],p[2]));paginate();save();
+      var bands=doc.querySelectorAll(".blk.band");var nb=bands[bands.length-1];
+      if(nb)nb.scrollIntoView({behavior:"smooth",block:"center"});
+    });
+    document.addEventListener("click",function(e){if(menu.style.display==="block"&&!menu.contains(e.target))menu.style.display="none"});
+
+    /* PDF：軽量版ボタン */
+    var bp=document.getElementById("btnPdf"),bl=document.createElement("button");
+    bl.id="btnPdfLight";bl.className="sub";bl.textContent="PDF（軽量）";bl.title="画質を下げて小さいPDFを作ります";
+    bp.parentNode.insertBefore(bl,bp.nextSibling);
+    bp.addEventListener("click",function(){ibMakePdf(false)});
+    bl.addEventListener("click",function(){ibMakePdf(true)});
+
+    /* 入力欄がキーボードで隠れないようにする */
+    document.addEventListener("focusin",function(e){
+      var t=e.target;if(!t||!t.isContentEditable)return;
+      setTimeout(function(){
+        var vv=window.visualViewport,bottom=vv?vv.offsetTop+vv.height:innerHeight;
+        var r=t.getBoundingClientRect(),tb2=document.querySelector(".toolbar"),top=(tb2?tb2.offsetHeight:0)+8;
+        if(r.height>bottom*0.6)return;
+        if(r.bottom>bottom-12)window.scrollBy(0,r.bottom-bottom+70);
+        else if(r.top<top)window.scrollBy(0,r.top-top-20);
+      },450);
+    });
+
+    /* localStorageに入りきらず大容量保存に回っていたときの復元 */
+    try{
+      if(!baked&&!localStorage.getItem(KEY)&&localStorage.getItem(KEY+".idb")==="1"){
+        idbGet(KEY,function(s){if(s){ibApplySnap(s);ibRefresh(true)}});
+      }
+    }catch(e){}
+  })();
+
   /* ---------- 日付欄：カレンダーから選ぶ（手入力もそのまま可） ---------- */
   (function(){
     var o=document.getElementById("dateBtn");if(o)o.remove();
@@ -440,22 +650,17 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
     window.addEventListener("resize",function(){place();closeMenu()});
   })();
 
-  document.getElementById("addSec").addEventListener("click",function(){
-    var cl=doc.querySelector(".blk.closing");
-    cl.insertAdjacentHTML("beforebegin",sectionHTML("",[[""]]));
-    paginate();save();
-  });
   document.getElementById("btnPrint").addEventListener("click",function(){clearTimeout(timer);if(needRepaginate())paginate();save();window.print()});
   document.getElementById("btnNew").addEventListener("click",function(){
     if(confirm("今の内容を消して、新しい報告書にします。よろしいですか？\n（必要なら先に「このHTMLを保存」をしてください）")){
-      try{localStorage.removeItem(KEY)}catch(e){}
+      try{localStorage.removeItem(KEY);localStorage.removeItem(KEY+".t");localStorage.removeItem(KEY+".idb")}catch(e){}idbDel(KEY);
       document.documentElement.removeAttribute("data-baked");
       location.reload();
     }
   });
 
   /* ---------- PDFファイルを作成（用紙1枚＝A4 1ページ。印刷機能に頼らない） ---------- */
-  function buildPdf(){
+  function buildPdf(light){
     if(!window.html2canvas||!window.jspdf){alert("PDF作成の部品を読み込めませんでした。ネットにつないでから、ページを更新してください。");return Promise.reject(new Error("lib"))}
     clearTimeout(timer);if(needRepaginate())paginate();save();
     var root=document.documentElement,prevZoom=doc.style.zoom;
@@ -474,9 +679,9 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
     var chain=Promise.resolve();
     sheets.forEach(function(sh,i){
       chain=chain.then(function(){
-        return window.html2canvas(sh,{scale:2,backgroundColor:"#ffffff",useCORS:true,logging:false}).then(function(c){
+        return window.html2canvas(sh,{scale:light?1.3:2,backgroundColor:"#ffffff",useCORS:true,logging:false}).then(function(c){
           if(i>0)pdf.addPage("a4","portrait");
-          pdf.addImage(c.toDataURL("image/jpeg",0.92),"JPEG",0,0,210,297,undefined,"FAST");
+          pdf.addImage(c.toDataURL("image/jpeg",light?0.7:0.92),"JPEG",0,0,210,297,undefined,"FAST");
         });
       });
     });
@@ -491,19 +696,10 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
     var owner=((cell&&cell.textContent)||"").replace(/\s|　/g,"")||"報告書";
     return "点検報告書_"+owner+".pdf";
   }
-  document.getElementById("btnPdf").addEventListener("click",function(){
-    buildPdf().then(function(pdf){
-      var blob=pdf.output("blob"),name=pdfName();
-      var file=new File([blob],name,{type:"application/pdf"});
-      if(navigator.canShare&&navigator.canShare({files:[file]})){
-        navigator.share({files:[file],title:name}).catch(function(){pdf.save(name)});
-      }else{pdf.save(name)}
-    }).catch(function(){});
-  });
   document.getElementById("btnSave").addEventListener("click",function(){
     paginate();save();
     var root=document.documentElement;root.setAttribute("data-baked","1");
-    var html="<!DOCTYPE html>\n"+root.outerHTML;
+    var html="<!DOCTYPE html>\n"+ibCleanHTML(root);
     root.removeAttribute("data-baked");
     var cell=doc.querySelector("table.info td:nth-child(2)");
     var owner=((cell&&cell.textContent)||"").replace(/\s|　/g,"")||"報告書";
