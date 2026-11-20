@@ -348,7 +348,7 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
     if(t.matches(".photo .rm")){e.preventDefault();var p=t.closest(".photo");var im=p.querySelector("img");im.removeAttribute("src");im.hidden=true;p.classList.remove("has");save();return}
     if(t.matches(".photo .cam")){e.preventDefault();t.closest(".photo").querySelector(".camin").click();return}
     var ph=t.closest(".photo");
-    if(ph&&!t.matches("input")){e.preventDefault();ph.querySelector("input").click();return}
+    if(ph&&!t.matches("input")){e.preventDefault();pickPhotos(ph);return}
     var a=t.getAttribute&&t.getAttribute("data-act");
     var blk=t.closest&&t.closest(".blk");
     if(a==="addEntry"){lastOfSid(blk.getAttribute("data-sid")).insertAdjacentHTML("afterend",entryBlock(blk.getAttribute("data-sid"),""));paginate();save()}
@@ -407,16 +407,26 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
   function ibApplySnap(s){doc.innerHTML=s;paginate()}
 
   /* --- 複数の写真を一度に選ぶ：2枚目以降は同じ診断項目の欄が自動で増えて入る --- */
-  function handlePhotoFiles(inp){
-    var files=[].slice.call(inp.files||[]);if(!files.length)return;
-    var label=inp.closest(".photo"),blk=label.closest(".blk");
+  function handlePhotoFiles(inp){handleFiles(inp.closest(".photo"),[].slice.call(inp.files||[]))}
+  function handleFiles(label,files){
+    if(!files.length)return;
+    var blk=label.closest(".blk");
     loadPhoto(label,files[0]);
     if(files.length>1&&blk&&blk.classList.contains("entry")){
-      var sid=blk.getAttribute("data-sid"),item=ibItemOf(blk).replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c]}),after=blk,labels=[];
-      files.slice(1).forEach(function(){after.insertAdjacentHTML("afterend",entryBlock(sid,item));after=after.nextElementSibling;labels.push(after.querySelector(".photo"))});
+      /* 診断項目・診断結果・所見の文面も、元の欄からそのままコピーする */
+      var sid=blk.getAttribute("data-sid"),vals=[].slice.call(blk.querySelectorAll(".dg [data-ph]")).map(function(c){return c.innerHTML}),after=blk,labels=[];
+      files.slice(1).forEach(function(){after.insertAdjacentHTML("afterend",entryBlock(sid,vals[0],vals[1],vals[2]));after=after.nextElementSibling;labels.push(after.querySelector(".photo"))});
       paginate();
       labels.forEach(function(l,i){loadPhoto(l,files[i+1])});
     }
+  }
+  /* 写真を選ぶ：対応ブラウザ(Chrome/Edge等)は前回選んだフォルダを記憶して開く。非対応(iPad Safari等)は従来の選択画面 */
+  function pickPhotos(ph){
+    var inp=ph.querySelector("input:not(.camin)");
+    if(!window.showOpenFilePicker){inp.click();return}
+    window.showOpenFilePicker({multiple:true,id:"ftPhotos",types:[{description:"写真",accept:{"image/*":[".jpg",".jpeg",".png",".heic",".webp",".gif"]}}]}).then(function(hs){
+      return Promise.all(hs.map(function(h){return h.getFile()}))
+    }).then(function(fs){handleFiles(ph,fs)}).catch(function(err){if(!err||err.name!=="AbortError")inp.click()});
   }
 
   function ibCleanHTML(el){var c=el.cloneNode(true);["tmplBtn","tmplMenu","rowTools","secMenu","dateBtn","infobar","btnPdfLight","pdfBusy"].forEach(function(i){var x=c.querySelector("#"+i);if(x)x.remove()});return c.outerHTML}
