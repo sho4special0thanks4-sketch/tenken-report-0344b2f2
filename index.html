@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="format-detection" content="telephone=no">
-<title>点検報告書</title>
 <meta name="robots" content="noindex,nofollow">
+<title>点検報告書</title>
 <style>
 :root{--line:#1f5a2a;--navy:#2e7d32;--purple:#2e7d32}
 *{box-sizing:border-box}
@@ -152,6 +152,17 @@ html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
   .photo:not(.has){background:#fff}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
+#histOv{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;padding:4vh 12px;overflow:auto}
+#histOv[hidden]{display:none}
+#histOv .hbox{background:#fff;border-radius:10px;max-width:640px;width:100%;padding:14px 16px;color:#222;font-size:15px}
+#histOv .hhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+#histOv .hnote{background:#eef1fb;border-radius:6px;padding:8px 10px;font-size:13px;line-height:1.7;margin-bottom:8px}
+#histOv .hrow{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;border-top:1px solid #ddd;padding:9px 0}
+#histOv .ht{font-weight:bold;min-width:84px}
+#histOv .hn{flex:1;min-width:120px}
+#histOv .hp{color:#555;font-size:13px}
+#histOv .hempty{padding:18px 4px;color:#555}
+#histOv button{font:inherit;font-size:14px;border:0;border-radius:6px;padding:8px 12px;background:#4a5a9a;color:#fff;cursor:pointer;min-height:40px}
 </style>
 </head>
 <body>
@@ -666,7 +677,7 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
     if(confirm("今の内容を消して、新しい報告書にします。よろしいですか？\n（必要なら先に「このHTMLを保存」をしてください）")){
       try{localStorage.removeItem(KEY);localStorage.removeItem(KEY+".t");localStorage.removeItem(KEY+".idb")}catch(e){}idbDel(KEY);
       document.documentElement.removeAttribute("data-baked");
-      location.reload();
+      (window.ftBeforeNew||function(g){g()})(function(){location.reload()});
     }
   });
 
@@ -718,6 +729,81 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
     a.href=URL.createObjectURL(new Blob([html],{type:"text/html"}));
     a.download="点検報告書_"+owner+".html";document.body.appendChild(a);a.click();a.remove();
   });
+  /* ====== 履歴つき自動保存（5分ごと・最新20件・端末内のIndexedDB） ====== */
+  (function(){
+    var HK=KEY+".hidx",EVERY=300000,MAXN=20,MAXBYTES=150000000,last=null,lastAt=0,busy=false;
+    function pad(n){return ("0"+n).slice(-2)}
+    function label(t){var d=new Date(t);return (d.getMonth()+1)+"/"+d.getDate()+" "+pad(d.getHours())+":"+pad(d.getMinutes())}
+    function meta(snap,t){
+      var fl=ibField("name"),n=fl&&fl.cell(),nm=((n&&n.textContent)||"").replace(/\s|　/g,"").replace(/様邸$/,"");
+      var ph=0;document.querySelectorAll(".photo img").forEach(function(i){if(i.getAttribute("src"))ph++});
+      return {k:KEY+".h."+t,t:t,name:nm,photos:ph,size:snap.length};
+    }
+    function getIdx(cb){idbGet(HK,function(s){var a=[];try{a=JSON.parse(s||"[]")}catch(e){}cb(a)})}
+    function trim(a){
+      a.sort(function(x,y){return y.t-x.t});
+      var tot=0,keep=[];
+      a.forEach(function(m,i){tot+=m.size;if(i<MAXN&&(i<3||tot<=MAXBYTES))keep.push(m);else idbDel(m.k)});
+      return keep;
+    }
+    /* force=true: 変更がなくても保存。done: 保存が終わってから呼ぶ */
+    function snapshot(force,done){
+      var fin=function(){busy=false;done&&done()};
+      if(busy){done&&done();return}
+      var snap;try{snap=ibSnap()}catch(e){done&&done();return}
+      if(last===null){last=snap;if(!force){done&&done();return}}
+      if(!force&&snap===last){done&&done();return}
+      busy=true;var t=Date.now(),m=meta(snap,t);
+      idbPut(m.k,snap,function(ok){
+        if(!ok){var s=document.getElementById("saveState");if(s)s.textContent="履歴を保存できません（端末の空きが足りません）";fin();return}
+        last=snap;lastAt=t;
+        getIdx(function(a){a.push(m);a=trim(a);idbPut(HK,JSON.stringify(a),function(){
+          var s=document.getElementById("saveState");if(s)s.textContent="履歴に保存 "+label(t);fin();
+        })});
+      });
+    }
+    window.ftHistSnapshot=snapshot;
+    setTimeout(function(){try{last=ibSnap()}catch(e){}},2500);
+    setInterval(function(){snapshot(false)},EVERY);
+    document.addEventListener("visibilitychange",function(){if(document.visibilityState==="hidden"&&Date.now()-lastAt>60000)snapshot(false)});
+    window.addEventListener("pagehide",function(){if(Date.now()-lastAt>60000)snapshot(false)});
+    try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
+
+    /* --- 「保存履歴から戻す」画面 --- */
+    var tb=document.getElementById("btnNew"),btn=document.createElement("button");
+    btn.id="btnHist";btn.className="sub";btn.textContent="🕘 保存履歴から戻す";
+    tb.parentNode.insertBefore(btn,tb);
+    var ov=document.createElement("div");ov.id="histOv";ov.className="no-print";ov.hidden=true;
+    ov.innerHTML='<div class="hbox"><div class="hhead"><b>保存履歴から戻す</b><button type="button" id="histClose">閉じる</button></div>'+
+      '<div class="hnote">5分ごとに、変更があれば自動で保存しています（最新20件・この端末の中だけ）。ページが落ちたり閉じてしまったときは、ここから時点を選んで戻せます。戻す前の状態も履歴に残ります。</div><div id="histList"></div></div>';
+    document.body.appendChild(ov);
+    function close(){ov.hidden=true}
+    document.getElementById("histClose").onclick=close;
+    ov.addEventListener("click",function(e){if(e.target===ov)close()});
+    function render(a){
+      var L=document.getElementById("histList");
+      if(!a.length){L.innerHTML='<div class="hempty">まだ履歴はありません。入力して5分たつと、ここに出ます。</div>';return}
+      L.innerHTML="";
+      a.forEach(function(m){
+        var r=document.createElement("div");r.className="hrow";
+        r.innerHTML='<span class="ht">'+label(m.t)+'</span><span class="hn">'+(m.name?m.name+" 様邸":"（お客様名なし）")+'</span><span class="hp">写真 '+m.photos+' 枚</span>';
+        var b=document.createElement("button");b.type="button";b.textContent="この時点に戻す";
+        b.onclick=function(){
+          if(!confirm(label(m.t)+" の状態に戻します。\n今の内容も履歴に残してから戻します。よろしいですか？"))return;
+          snapshot(true,function(){
+            idbGet(m.k,function(s){
+              if(!s){alert("この履歴を読み出せませんでした。");return}
+              ibApplySnap(s);save();try{ibRefresh()}catch(e){}last=s;close();
+            });
+          });
+        };
+        r.appendChild(b);L.appendChild(r);
+      });
+    }
+    btn.onclick=function(){ov.hidden=false;document.getElementById("histList").innerHTML='<div class="hempty">読み込み中…</div>';getIdx(function(a){a.sort(function(x,y){return y.t-x.t});render(a)})};
+    /* 「新しい報告書にする」の前に、今の内容を履歴へ */
+    window.ftBeforeNew=function(go){snapshot(true,go)};
+  })();
 })();
 </script>
 </body>
