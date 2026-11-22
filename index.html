@@ -163,6 +163,25 @@ html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
 #histOv .hp{color:#555;font-size:13px}
 #histOv .hempty{padding:18px 4px;color:#555}
 #histOv button{font:inherit;font-size:14px;border:0;border-radius:6px;padding:8px 12px;background:#4a5a9a;color:#fff;cursor:pointer;min-height:40px}
+.photo .libb{position:absolute;right:6px;bottom:6px;z-index:3;border:0;border-radius:8px;background:#7a5200;color:#fff;font:inherit;font-size:14px;min-height:38px;padding:6px 12px;cursor:pointer}
+@media screen and (pointer:coarse){.photo .libb{min-height:46px;font-size:15px}}
+.cap .photo .libb{display:none !important}
+#libOv{position:fixed;inset:0;z-index:110;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;padding:3vh 10px;overflow:auto}
+#libOv[hidden]{display:none}
+#libOv .lbox{background:#fff;border-radius:10px;max-width:900px;width:100%;padding:14px 16px;color:#222;font-size:15px}
+#libOv .lhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+#libOv .lnote{background:#eef1fb;border-radius:6px;padding:8px 10px;font-size:13px;line-height:1.7;margin-bottom:8px}
+#libOv .lact{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+#libOv button{font:inherit;font-size:14px;border:0;border-radius:6px;padding:8px 12px;background:#4a5a9a;color:#fff;cursor:pointer;min-height:40px}
+#libOv button.lsub{background:#888}
+#libProg{font-size:13px;color:#333;min-height:18px;margin:4px 0}
+#libGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+#libGrid .lt{position:relative;padding:0;min-height:0;background:#ddd;border-radius:6px;overflow:hidden;aspect-ratio:1.34}
+#libGrid .lt img{width:100%;height:100%;object-fit:cover;display:block}
+#libGrid .lt .ln{position:absolute;left:4px;top:4px;background:rgba(0,0,0,.6);color:#fff;font-size:11px;border-radius:4px;padding:1px 5px}
+#libGrid .lt.used{opacity:.3;cursor:not-allowed}
+#libGrid .lt .lu{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.75);color:#fff;font-size:12px;padding:3px 0}
+#libOv .lempty{padding:18px 4px;color:#555;grid-column:1/-1}
 </style>
 </head>
 <body>
@@ -342,7 +361,7 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
         var max=1400,r=Math.min(1,max/Math.max(im.width,im.height));
         var c=document.createElement("canvas");c.width=Math.round(im.width*r);c.height=Math.round(im.height*r);
         c.getContext("2d").drawImage(im,0,0,c.width,c.height);
-        var t=label.querySelector("img");t.src=c.toDataURL("image/jpeg",0.82);t.hidden=false;
+        var t=label.querySelector("img");t.src=c.toDataURL("image/jpeg",0.82);t.hidden=false;t.removeAttribute("data-lib");
         label.classList.add("has");save();
       };
       im.src=rd.result;
@@ -356,7 +375,7 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
   function lastOfSid(sid){var l=null;doc.querySelectorAll(".blk").forEach(function(b){if(b.getAttribute("data-sid")===sid)l=b});return l}
   doc.addEventListener("click",function(e){
     var t=e.target;
-    if(t.matches(".photo .rm")){e.preventDefault();var p=t.closest(".photo");var im=p.querySelector("img");im.removeAttribute("src");im.hidden=true;p.classList.remove("has");save();return}
+    if(t.matches(".photo .rm")){e.preventDefault();var p=t.closest(".photo");var im=p.querySelector("img");im.removeAttribute("src");im.removeAttribute("data-lib");im.hidden=true;p.classList.remove("has");save();return}
     if(t.matches(".photo .cam")){e.preventDefault();t.closest(".photo").querySelector(".camin").click();return}
     var ph=t.closest(".photo");
     if(ph&&!t.matches("input")){e.preventDefault();pickPhotos(ph);return}
@@ -674,7 +693,7 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
 
   document.getElementById("btnPrint").addEventListener("click",function(){clearTimeout(timer);if(needRepaginate())paginate();save();window.print()});
   document.getElementById("btnNew").addEventListener("click",function(){
-    if(confirm("今の内容を消して、新しい報告書にします。よろしいですか？\n（必要なら先に「このHTMLを保存」をしてください）")){
+    if(confirm("今の内容を消して、新しい報告書にします。よろしいですか？\n（必要なら先に「このHTMLを保存」をしてください）\n（使った写真はライブラリから外れ、未使用の写真は残ります）")){
       try{localStorage.removeItem(KEY);localStorage.removeItem(KEY+".t");localStorage.removeItem(KEY+".idb")}catch(e){}idbDel(KEY);
       document.documentElement.removeAttribute("data-baked");
       (window.ftBeforeNew||function(g){g()})(function(){location.reload()});
@@ -803,6 +822,115 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
     btn.onclick=function(){ov.hidden=false;document.getElementById("histList").innerHTML='<div class="hempty">読み込み中…</div>';getIdx(function(a){a.sort(function(x,y){return y.t-x.t});render(a)})};
     /* 「新しい報告書にする」の前に、今の内容を履歴へ */
     window.ftBeforeNew=function(go){snapshot(true,go)};
+  })();
+  /* ====== 写真ライブラリ：先に何枚も取り込み、使った写真は選べなくなる（重複防止） ====== */
+  (function(){
+    var LK=KEY+".lib",LIB=[],mode=null,target=null,importing=false;
+    function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+    function usedIds(){var u={};doc.querySelectorAll("img[data-lib]").forEach(function(i){if(i.getAttribute("src"))u[i.getAttribute("data-lib")]=1});return u}
+    function persist(cb){idbPut(LK,JSON.stringify(LIB),function(ok){if(!ok){var s=document.getElementById("saveState");if(s)s.textContent="ライブラリを端末に保存できません（写真が多すぎます）"}cb&&cb(ok)})}
+    function counts(){var u=usedIds(),n=0;LIB.forEach(function(x){if(u[x.id])n++});return {all:LIB.length,used:n,left:LIB.length-n}}
+    function badge(){var c=counts();btn.textContent="📚 写真ライブラリ"+(c.all?"（残り"+c.left+"枚）":"")}
+    var tb=document.getElementById("btnHist")||document.getElementById("btnNew"),btn=document.createElement("button");
+    btn.id="btnLib";btn.className="sub";btn.textContent="📚 写真ライブラリ";tb.parentNode.insertBefore(btn,tb);
+
+    var ov=document.createElement("div");ov.id="libOv";ov.className="no-print";ov.hidden=true;
+    ov.innerHTML='<div class="lbox"><div class="lhead"><b id="libTitle">写真ライブラリ</b><button type="button" id="libClose">閉じる</button></div>'+
+      '<div class="lnote" id="libNote"></div>'+
+      '<div class="lact"><button type="button" id="libAdd">📥 写真を取り込む（まとめて選べます）</button><button type="button" id="libClear" class="lsub">未使用の写真をすべて外す</button></div>'+
+      '<input type="file" id="libFile" accept="image/*" multiple hidden><div id="libProg"></div><div id="libGrid"></div></div>';
+    document.body.appendChild(ov);
+    var fileIn=document.getElementById("libFile"),grid=document.getElementById("libGrid"),prog=document.getElementById("libProg"),note=document.getElementById("libNote");
+    function close(){ov.hidden=true;mode=null;target=null;badge()}
+    document.getElementById("libClose").onclick=close;
+    ov.addEventListener("click",function(e){if(e.target===ov)close()});
+    document.getElementById("libAdd").onclick=function(){if(!importing)fileIn.click()};
+
+    function render(){
+      var c=counts(),u=usedIds();
+      document.getElementById("libTitle").textContent=mode==="pick"?"この欄に入れる写真を選ぶ":"写真ライブラリ";
+      note.textContent=(mode==="pick"?"使う写真をタップすると、この欄に入ります。":"写真をタップすると、いちばん上の空いている診断欄に入ります"+(document.querySelector("#cover .photo")?"（表紙の外観写真は、その欄の「📚 ライブラリ」から選びます）":"")+"。")+"　全"+c.all+"枚（使用済み"+c.used+"・残り"+c.left+"）。使った写真は薄くなり、選べません（欄から外すと、また選べます）。";
+      if(!LIB.length){grid.innerHTML='<div class="lempty">まだ写真がありません。「写真を取り込む」で、iPadの写真からまとめて選んでください。</div>';return}
+      grid.innerHTML="";
+      LIB.forEach(function(x,i){
+        var b=document.createElement("button");b.type="button";b.className="lt"+(u[x.id]?" used":"");b.disabled=!!u[x.id];
+        b.innerHTML='<img alt="" src="'+x.th+'"><span class="ln">'+(i+1)+'</span>'+(u[x.id]?'<span class="lu">使用済み</span>':"");
+        b.onclick=function(){choose(x)};grid.appendChild(b);
+      });
+    }
+    function place(slot,x){
+      var im=slot.querySelector("img");im.src=x.src;im.hidden=false;im.setAttribute("data-lib",x.id);slot.classList.add("has");save();
+    }
+    function choose(x){
+      if(usedIds()[x.id])return;
+      if(mode==="pick"){if(target&&document.body.contains(target)){place(target,x)}close();return}
+      var slot=null,all=doc.querySelectorAll(".photo");
+      for(var i=0;i<all.length;i++){if(!all[i].classList.contains("has")){slot=all[i];break}}
+      if(!slot){alert("空いている診断欄がありません。先に「＋診断箇所を追加」などで欄を増やしてください。");return}
+      place(slot,x);render();badge();
+    }
+    function open(m,t){mode=m;target=t||null;ov.hidden=false;prog.textContent="";render()}
+    btn.onclick=function(){open("manage")};
+
+    /* --- 取り込み：1300px・画質0.8に縮小（写真欄と同じ）＋一覧用の小さな画像 --- */
+    function shrink(file,done){
+      var url=URL.createObjectURL(file),im=new Image();
+      im.onload=function(){
+        function mk(max,q){var r=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.max(1,Math.round(im.width*r));c.height=Math.max(1,Math.round(im.height*r));c.getContext("2d").drawImage(im,0,0,c.width,c.height);return c.toDataURL("image/jpeg",q)}
+        var o=null;try{o={src:mk(1300,0.8),th:mk(260,0.7)}}catch(e){}
+        URL.revokeObjectURL(url);done(o);
+      };
+      im.onerror=function(){URL.revokeObjectURL(url);done(null)};
+      im.src=url;
+    }
+    fileIn.addEventListener("change",function(){
+      var files=[].slice.call(fileIn.files||[]).filter(function(f){return /^image\//.test(f.type)||/\.(heic|heif)$/i.test(f.name)});fileIn.value="";
+      if(!files.length)return;
+      importing=true;var i=0,added=0,dup=0,bad=0;
+      (function next(){
+        if(i>=files.length){
+          importing=false;prog.textContent="取り込み完了：新しく"+added+"枚"+(dup?"（同じ写真"+dup+"枚は取り込まず）":"")+(bad?"・読めなかった"+bad+"枚":"");
+          persist();render();badge();return;
+        }
+        var f=files[i++];prog.textContent="取り込み中… "+i+" / "+files.length;
+        var key=f.name+"|"+f.size+"|"+f.lastModified;
+        if(LIB.some(function(x){return x.k===key})){dup++;setTimeout(next,0);return}
+        shrink(f,function(o){
+          if(!o)bad++;else{LIB.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),k:key,src:o.src,th:o.th});added++}
+          if(added&&added%30===0)persist();
+          setTimeout(next,0);
+        });
+      })();
+    });
+    document.getElementById("libClear").onclick=function(){
+      var u=usedIds(),n=LIB.filter(function(x){return !u[x.id]}).length;
+      if(!n){alert("未使用の写真はありません。");return}
+      if(!confirm("未使用の写真 "+n+"枚をライブラリから外します（使用済みの写真と、報告書の中の写真は消えません）。よろしいですか？"))return;
+      LIB=LIB.filter(function(x){return u[x.id]});persist();render();badge();
+    };
+
+    /* --- 各写真欄の「📚 ライブラリ」ボタン --- */
+    var oldCaps=setCaps;
+    setCaps=function(){oldCaps();document.querySelectorAll(".photo").forEach(function(p){
+      if(p.querySelector(".libb"))return;
+      var b=document.createElement("button");b.type="button";b.className="libb no-print";b.textContent="📚 ライブラリ";p.appendChild(b);
+    })};
+    document.addEventListener("click",function(e){
+      var t=e.target;if(!t.closest||!t.matches(".photo .libb"))return;
+      e.preventDefault();e.stopPropagation();open("pick",t.closest(".photo"));
+    },true);
+
+    /* --- 「新しい報告書にする」：使った写真だけライブラリから外し、未使用はそのまま次へ --- */
+    var prev=window.ftBeforeNew;
+    window.ftBeforeNew=function(go){
+      (prev||function(g){g()})(function(){
+        var u=usedIds();LIB=LIB.filter(function(x){return !u[x.id]});persist(function(){go()});
+      });
+    };
+
+    idbGet(LK,function(s){try{LIB=JSON.parse(s||"[]")}catch(e){LIB=[]}badge()});
+    setInterval(badge,3000);
+    try{setCaps()}catch(e){}
   })();
 })();
 </script>
