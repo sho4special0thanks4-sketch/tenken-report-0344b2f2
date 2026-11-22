@@ -174,6 +174,7 @@ html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
 #libOv .lact{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}
 #libOv button{font:inherit;font-size:14px;border:0;border-radius:6px;padding:8px 12px;background:#4a5a9a;color:#fff;cursor:pointer;min-height:40px}
 #libOv button.lsub{background:#888}
+#libOv button.pk{background:#1f7a3a}
 #libProg{font-size:13px;color:#333;min-height:18px;margin:4px 0}
 #libGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
 #libGrid .lt{position:relative;padding:0;min-height:0;background:#ddd;border-radius:6px;overflow:hidden;aspect-ratio:1.34}
@@ -842,8 +843,8 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
     var ov=document.createElement("div");ov.id="libOv";ov.className="no-print";ov.hidden=true;
     ov.innerHTML='<div class="lbox"><div class="lhead"><b id="libTitle">写真ライブラリ</b><button type="button" id="libClose">閉じる</button></div>'+
       '<div class="lnote" id="libNote"></div>'+
-      '<div class="lact"><button type="button" id="libAdd">📥 写真を取り込む（まとめて選べます）</button><button type="button" id="libClear" class="lsub">未使用の写真をすべて外す</button></div>'+
-      '<input type="file" id="libFile" accept="image/*" multiple hidden><div id="libProg"></div><div id="libGrid"></div></div>';
+      '<div class="lact"><button type="button" id="libAdd">📥 写真を取り込む（まとめて選べます）</button><button type="button" id="libPack" class="pk">📦 写真パックから取り込む</button><button type="button" id="libClear" class="lsub">未使用の写真をすべて外す</button></div>'+
+      '<input type="file" id="libFile" accept="image/*" multiple hidden><input type="file" id="libPackFile" accept=".html,.htm,text/html" multiple hidden><div id="libProg"></div><div id="libGrid"></div></div>';
     document.body.appendChild(ov);
     var fileIn=document.getElementById("libFile"),grid=document.getElementById("libGrid"),prog=document.getElementById("libProg"),note=document.getElementById("libNote");
     function close(){ov.hidden=true;mode=null;target=null;badge()}
@@ -921,6 +922,53 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
           });
         });
       })();
+    });
+    /* --- 写真パック（iPadで作ったHTML）から取り込む --- */
+    var packIn=document.getElementById("libPackFile");
+    document.getElementById("libPack").onclick=function(){if(!importing)packIn.click()};
+    function thumbOf(d,cb){
+      var im=new Image();
+      im.onload=function(){try{var r=Math.min(1,260/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.max(1,Math.round(im.width*r));c.height=Math.max(1,Math.round(im.height*r));c.getContext("2d").drawImage(im,0,0,c.width,c.height);cb(c.toDataURL("image/jpeg",0.7))}catch(e){cb(null)}};
+      im.onerror=function(){cb(null)};im.src=d;
+    }
+    packIn.addEventListener("change",function(){
+      var files=[].slice.call(packIn.files||[]).sort(function(a,b){return a.name.localeCompare(b.name,"ja",{numeric:true})});packIn.value="";
+      if(!files.length)return;
+      importing=true;var fi=0,added=0,dup=0,bad=0,badFiles=0;
+      function finish(){
+        importing=false;
+        prog.textContent="写真パックから取り込みました："+added+"枚"+(dup?"（同じ写真"+dup+"枚は取り込まず）":"")+(bad?"・読めなかった"+bad+"枚":"")+(badFiles?"・写真パックではないファイル"+badFiles+"個":"");
+        persist();render();badge();
+      }
+      function nextFile(){
+        if(fi>=files.length){finish();return}
+        var f=files[fi++];prog.textContent="写真パックを読み込み中… （"+fi+" / "+files.length+"ファイル）";
+        var rd=new FileReader();
+        rd.onload=function(){
+          var m=/<script type="application\/json" id="packData">([\s\S]*?)<\/script>/.exec(String(rd.result)),pk=null;
+          try{pk=JSON.parse(m[1])}catch(e){}
+          if(!pk||!pk.photos||!pk.photos.length){badFiles++;setTimeout(nextFile,0);return}
+          var ps=pk.photos,pi=0;
+          (function nextPhoto(){
+            if(pi>=ps.length){setTimeout(nextFile,0);return}
+            var p=ps[pi++],key="pack|"+(p.n||"")+"|"+(p.t||0)+"|"+String(p.d||"").length;
+            prog.textContent="写真パックを読み込み中… "+fi+"/"+files.length+"ファイル目 "+pi+"/"+ps.length+"枚";
+            if(LIB.some(function(x){return x.k===key})){dup++;setTimeout(nextPhoto,0);return}
+            if(!p.d||String(p.d).indexOf("data:image/")!==0){bad++;setTimeout(nextPhoto,0);return}
+            thumbOf(p.d,function(th){
+              if(!th){bad++;setTimeout(nextPhoto,0);return}
+              var id=Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+              idbPut(PK+id,p.d,function(ok){
+                if(ok){LIB.push({id:id,k:key,th:th});added++;if(added%20===0)persist()}else bad++;
+                setTimeout(nextPhoto,0);
+              });
+            });
+          })();
+        };
+        rd.onerror=function(){badFiles++;setTimeout(nextFile,0)};
+        rd.readAsText(f);
+      }
+      nextFile();
     });
     function drop(list){list.forEach(function(x){idbDel(PK+x.id)})}
     document.getElementById("libClear").onclick=function(){
