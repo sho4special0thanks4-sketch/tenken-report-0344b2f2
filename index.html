@@ -1058,6 +1058,46 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
     try{setCaps()}catch(e){}
   })();
 
+  /* ====== 改行の修正：欄が横並び(flex)レイアウトでも、Enterで新しい行が「下」に増えるようにする ======
+     以前はEnterで<div>ができ、2行目が右隣に並んで欄の高さも増えなかった。今は<br>で改行する。 */
+  (function(){
+    document.addEventListener("beforeinput",function(e){
+      if(e.inputType==="insertParagraph"&&e.target&&e.target.isContentEditable){
+        e.preventDefault();document.execCommand("insertLineBreak");
+      }
+    },true);
+    /* 貼り付けの改行も同じ形に（既存の貼り付け処理より先に処理する） */
+    document.addEventListener("paste",function(e){
+      var t=e.target;if(!t||!t.isContentEditable)return;
+      var s=(e.clipboardData||window.clipboardData).getData("text/plain");
+      if(s.indexOf("\n")<0&&s.indexOf("\r")<0)return;
+      e.preventDefault();e.stopImmediatePropagation();
+      s.replace(/\r\n?/g,"\n").split("\n").forEach(function(ln,i){
+        if(i)document.execCommand("insertLineBreak");
+        if(ln)document.execCommand("insertText",false,ln);
+      });
+    },true);
+    /* 以前の報告書に残っている「<div>で改行した欄」を、<br>の形に直す（開いたときに1回） */
+    function fixLegacyDivs(){
+      var n=0;
+      document.querySelectorAll("[contenteditable]").forEach(function(el){
+        if(el.closest("#libOv,#histOv,#newOv"))return;
+        [].slice.call(el.children).forEach(function(d){
+          if(d.tagName!=="DIV"||d.hasAttribute("contenteditable"))return;
+          var hasPrev=!!d.previousSibling,onlyBr=d.childNodes.length===1&&d.firstChild.nodeName==="BR";
+          var frag=document.createDocumentFragment();
+          if(hasPrev)frag.appendChild(document.createElement("br"));
+          if(!onlyBr)while(d.firstChild)frag.appendChild(d.firstChild);
+          d.replaceWith(frag);n++;
+        });
+      });
+      return n;
+    }
+    window.ftFixLegacyDivs=fixLegacyDivs;
+    var oa=ibApplySnap;
+    ibApplySnap=function(s){oa(s);if(fixLegacyDivs())later()};
+    setTimeout(function(){if(fixLegacyDivs())later()},200);
+  })();
 })();
 </script>
 </body>
