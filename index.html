@@ -162,6 +162,18 @@ html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
 #histOv .hn{flex:1;min-width:120px}
 #histOv .hp{color:#555;font-size:13px}
 #histOv .hempty{padding:18px 4px;color:#555}
+#histOv .hact{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-bottom:8px;font-size:13px;color:#334}
+#histOv button.hdel{background:#b33;min-height:36px;padding:6px 10px;font-size:13px}
+#libOv .luse{font-size:12px;color:#445;background:#f4f6fb;border-radius:6px;padding:6px 10px;margin-bottom:8px;line-height:1.7}
+#newOv{position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;padding:10vh 10px}
+#newOv[hidden]{display:none}
+#newOv .nbox{background:#fff;border-radius:10px;max-width:560px;width:100%;padding:14px 16px;color:#222;font-size:15px}
+#newOv .lhead{margin-bottom:6px}
+#newOv .lnote{background:#eef1fb;border-radius:6px;padding:8px 10px;font-size:13px;line-height:1.7;margin-bottom:8px}
+#newOv .lact{display:flex;flex-wrap:wrap;gap:8px}
+#newOv button{font:inherit;font-size:14px;border:0;border-radius:6px;padding:10px 14px;background:#4a5a9a;color:#fff;cursor:pointer;min-height:44px}
+#newOv button.pk{background:#1f7a3a}
+#newOv button.lsub{background:#888}
 #histOv button{font:inherit;font-size:14px;border:0;border-radius:6px;padding:8px 12px;background:#4a5a9a;color:#fff;cursor:pointer;min-height:40px}
 .photo .libb{position:absolute;right:6px;bottom:6px;z-index:3;border:0;border-radius:8px;background:#7a5200;color:#fff;font:inherit;font-size:14px;min-height:38px;padding:6px 12px;cursor:pointer}
 @media screen and (pointer:coarse){.photo .libb{min-height:46px;font-size:15px}}
@@ -694,7 +706,7 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
 
   document.getElementById("btnPrint").addEventListener("click",function(){clearTimeout(timer);if(needRepaginate())paginate();save();window.print()});
   document.getElementById("btnNew").addEventListener("click",function(){
-    if(confirm("今の内容を消して、新しい報告書にします。よろしいですか？\n（必要なら先に「このHTMLを保存」をしてください）\n（使った写真はライブラリから外れ、未使用の写真は残ります）")){
+    if(confirm("今の内容を消して、新しい報告書にします。よろしいですか？\n（必要なら先に「このHTMLを保存」をしてください）\n（使った写真は、ライブラリから外れます）")){
       try{localStorage.removeItem(KEY);localStorage.removeItem(KEY+".t");localStorage.removeItem(KEY+".idb")}catch(e){}idbDel(KEY);
       document.documentElement.removeAttribute("data-baked");
       (window.ftBeforeNew||function(g){g()})(function(){location.reload()});
@@ -783,6 +795,8 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
       });
     }
     window.ftHistSnapshot=snapshot;
+    window.ftHistInfo=function(cb){getIdx(function(a){var b=0;a.forEach(function(x){b+=x.size});cb({n:a.length,bytes:b})})};
+    window.ftHistClear=function(cb){getIdx(function(a){a.forEach(function(x){idbDel(x.k)});idbPut(HK,"[]",function(){cb&&cb(a.length)})})};
     setTimeout(function(){try{last=ibSnap()}catch(e){}},2500);
     setInterval(function(){snapshot(false)},EVERY);
     document.addEventListener("visibilitychange",function(){if(document.visibilityState==="hidden"&&Date.now()-lastAt>60000)snapshot(false)});
@@ -795,13 +809,20 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
     tb.parentNode.insertBefore(btn,tb);
     var ov=document.createElement("div");ov.id="histOv";ov.className="no-print";ov.hidden=true;
     ov.innerHTML='<div class="hbox"><div class="hhead"><b>保存履歴から戻す</b><button type="button" id="histClose">閉じる</button></div>'+
-      '<div class="hnote">5分ごとに、変更があれば自動で保存しています（最新20件・この端末の中だけ）。ページが落ちたり閉じてしまったときは、ここから時点を選んで戻せます。戻す前の状態も履歴に残ります。</div><div id="histList"></div></div>';
+      '<div class="hnote">5分ごとに、変更があれば自動で保存しています（最新20件・この端末の中だけ）。ページが落ちたり閉じてしまったときは、ここから時点を選んで戻せます。戻す前の状態も履歴に残ります。</div><div class="hact"><span id="histUse"></span><button type="button" id="histDel" class="hdel" hidden>履歴をすべて消す</button></div><div id="histList"></div></div>';
     document.body.appendChild(ov);
     function close(){ov.hidden=true}
     document.getElementById("histClose").onclick=close;
     ov.addEventListener("click",function(e){if(e.target===ov)close()});
     function render(a){
       var L=document.getElementById("histList");
+      var tot=0;a.forEach(function(m){tot+=m.size});
+      document.getElementById("histUse").textContent=a.length?("保存履歴："+a.length+"件・約"+(tot/1048576).toFixed(1)+"MB"):"";
+      var hd=document.getElementById("histDel");hd.hidden=!a.length;
+      hd.onclick=function(){
+        if(!confirm("保存履歴 "+a.length+"件（約"+(tot/1048576).toFixed(1)+"MB）をすべて消します。\n今開いている報告書と、写真ライブラリは消えません。消した履歴は元に戻せません。よろしいですか？"))return;
+        window.ftHistClear(function(){render([])});
+      };
       if(!a.length){L.innerHTML='<div class="hempty">まだ履歴はありません。入力して5分たつと、ここに出ます。</div>';return}
       L.innerHTML="";
       a.forEach(function(m){
@@ -830,7 +851,7 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
     var LK=KEY+".lib",PK=KEY+".libp.",LIB=[],mode=null,target=null,importing=false,placing=false;
     function usedIds(){var u={};doc.querySelectorAll("img[data-lib]").forEach(function(i){if(i.getAttribute("src"))u[i.getAttribute("data-lib")]=1});return u}
     function persist(cb){
-      idbPut(LK,JSON.stringify(LIB.map(function(x){return {id:x.id,k:x.k,th:x.th}})),function(ok){
+      idbPut(LK,JSON.stringify(LIB.map(function(x){return {id:x.id,k:x.k,th:x.th,sz:x.sz||0}})),function(ok){
         if(!ok){var s=document.getElementById("saveState");if(s)s.textContent="ライブラリを端末に保存できません（空き容量が足りません）"}
         cb&&cb(ok);
       });
@@ -842,7 +863,7 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
 
     var ov=document.createElement("div");ov.id="libOv";ov.className="no-print";ov.hidden=true;
     ov.innerHTML='<div class="lbox"><div class="lhead"><b id="libTitle">写真ライブラリ</b><button type="button" id="libClose">閉じる</button></div>'+
-      '<div class="lnote" id="libNote"></div>'+
+      '<div class="lnote" id="libNote"></div><div class="luse" id="libUse"></div>'+
       '<div class="lact"><button type="button" id="libAdd">📥 写真を取り込む（まとめて選べます）</button><button type="button" id="libPack" class="pk">📦 写真パックから取り込む</button><button type="button" id="libClear" class="lsub">未使用の写真をすべて外す</button></div>'+
       '<input type="file" id="libFile" accept="image/*" multiple hidden><input type="file" id="libPackFile" accept=".html,.htm,text/html" multiple hidden><div id="libProg"></div><div id="libGrid"></div></div>';
     document.body.appendChild(ov);
@@ -852,8 +873,21 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
     ov.addEventListener("click",function(e){if(e.target===ov)close()});
     document.getElementById("libAdd").onclick=function(){if(!importing)fileIn.click()};
 
+    function usage(){
+      var el=document.getElementById("libUse");if(!el)return;
+      var c=counts(),lb=0;LIB.forEach(function(x){lb+=x.sz||0});
+      var h=null,est=null;
+      function show(){
+        var t="使用中の容量：写真ライブラリ "+c.all+"枚・約"+(lb/1048576).toFixed(1)+"MB／保存履歴 "+(h?(h.n+"件・約"+(h.bytes/1048576).toFixed(1)+"MB"):"（確認中）");
+        if(est&&est.quota)t+="／この端末全体で約"+(est.usage/1048576).toFixed(0)+"MB（保存できる目安 約"+(est.quota/1073741824).toFixed(1)+"GB）";
+        el.textContent=t;
+      }
+      show();
+      if(window.ftHistInfo)window.ftHistInfo(function(r){h=r;show()});
+      try{if(navigator.storage&&navigator.storage.estimate)navigator.storage.estimate().then(function(e){est=e;show()})}catch(e){}
+    }
     function render(){
-      var c=counts(),u=usedIds();
+      var c=counts(),u=usedIds();usage();
       document.getElementById("libTitle").textContent=mode==="pick"?"この欄に入れる写真を選ぶ":"写真ライブラリ";
       note.textContent=(mode==="pick"?"使う写真をタップすると、この欄に入ります。":"写真をタップすると、いちばん上の空いている診断欄に入ります"+(document.querySelector("#cover .photo")?"（表紙の外観写真は、その欄の「📚 ライブラリ」から選びます）":"")+"。")+"　全"+c.all+"枚（使用済み"+c.used+"・残り"+c.left+"）。使った写真は薄くなり、選べません（欄から外すと、また選べます）。";
       if(!LIB.length){grid.innerHTML='<div class="lempty">まだ写真がありません。「写真を取り込む」で、iPadの写真からまとめて選んでください。</div>';return}
@@ -917,7 +951,7 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
           if(!o){bad++;setTimeout(next,0);return}
           var id=Date.now().toString(36)+Math.random().toString(36).slice(2,6);
           idbPut(PK+id,o.src,function(ok){
-            if(ok){LIB.push({id:id,k:key,th:o.th});added++;if(added%20===0)persist()}else bad++;
+            if(ok){LIB.push({id:id,k:key,th:o.th,sz:o.src.length});added++;if(added%20===0)persist()}else bad++;
             setTimeout(next,0);
           });
         });
@@ -959,7 +993,7 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
               if(!th){bad++;setTimeout(nextPhoto,0);return}
               var id=Date.now().toString(36)+Math.random().toString(36).slice(2,6);
               idbPut(PK+id,p.d,function(ok){
-                if(ok){LIB.push({id:id,k:key,th:th});added++;if(added%20===0)persist()}else bad++;
+                if(ok){LIB.push({id:id,k:key,th:th,sz:p.d.length});added++;if(added%20===0)persist()}else bad++;
                 setTimeout(nextPhoto,0);
               });
             });
@@ -990,11 +1024,23 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
     },true);
 
     /* --- 「新しい報告書にする」：使った写真だけライブラリから外し、未使用はそのまま次へ --- */
+    var nov=document.createElement("div");nov.id="newOv";nov.className="no-print";nov.hidden=true;
+    nov.innerHTML='<div class="nbox"><div class="lhead"><b>写真ライブラリの整理</b></div><div class="lnote" id="newMsg"></div><div class="lact"><button type="button" id="newKeep" class="pk">未使用の写真は残す（次の報告書で使えます）</button><button type="button" id="newDrop" class="lsub">未使用の写真も外す</button></div></div>';
+    document.body.appendChild(nov);
     var prev=window.ftBeforeNew;
     window.ftBeforeNew=function(go){
       (prev||function(g){g()})(function(){
-        var u=usedIds(),gone=LIB.filter(function(x){return u[x.id]});LIB=LIB.filter(function(x){return !u[x.id]});
-        persist(function(){drop(gone);go()});
+        var u=usedIds(),usedList=LIB.filter(function(x){return u[x.id]}),unused=LIB.length-usedList.length;
+        function fin(dropUnused){
+          var gone=dropUnused?LIB.slice():usedList;
+          LIB=dropUnused?[]:LIB.filter(function(x){return !u[x.id]});
+          persist(function(){drop(gone);go()});
+        }
+        if(!unused){fin(false);return}
+        document.getElementById("newMsg").textContent="未使用の写真が"+unused+"枚あります。次の報告書でも使うなら、残してください。";
+        nov.hidden=false;
+        document.getElementById("newKeep").onclick=function(){nov.hidden=true;fin(false)};
+        document.getElementById("newDrop").onclick=function(){nov.hidden=true;fin(true)};
       });
     };
 
@@ -1002,7 +1048,7 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
     idbGet(LK,function(s){
       var a=[];try{a=JSON.parse(s||"[]")}catch(e){a=[]}
       var old=a.filter(function(x){return x.src});
-      LIB=a.map(function(x){return {id:x.id,k:x.k,th:x.th}});badge();
+      LIB=a.map(function(x){return {id:x.id,k:x.k,th:x.th,sz:x.sz||(x.src?x.src.length:0)}});badge();
       if(old.length){var n=0;old.forEach(function(x){idbPut(PK+x.id,x.src,function(){if(++n===old.length)persist()})})}
     });
     /* 大きな保存データを後から復元したときも、すぐ「残り◯枚」を合わせる */
