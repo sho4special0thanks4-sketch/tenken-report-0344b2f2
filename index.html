@@ -236,7 +236,7 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
   function headBlock(){
     return '<div class="blk head" data-sid="head"><div class="rtitle" contenteditable data-ph="タイトル">点検報告書</div>'+
       '<table class="info">'+
-      '<tr><td class="k" contenteditable>お客様名</td><td contenteditable data-ph="例：サンプル　太郎　様邸"></td><td class="k" contenteditable>点検日</td><td contenteditable data-ph="例：2026/10/16"></td></tr>'+
+      '<tr><td class="k" contenteditable>お客様名</td><td contenteditable data-ph=""></td><td class="k" contenteditable>点検日</td><td contenteditable data-ph="例：2026/10/16"></td></tr>'+
       '<tr><td class="k" contenteditable>所在地</td><td contenteditable data-ph="任意"></td><td class="k" contenteditable>点検担当</td><td contenteditable data-ph="例：担当　花子"></td></tr></table></div>';
   }
   function bandBlock(sid,title){
@@ -413,10 +413,10 @@ iPadの「ファイル」アプリのプレビューなどでは、プログラ�
 
   /* ---------- 定型文プルダウン（欄をタップすると「▼ 定型文」が出る。自由入力はそのまま可能） ---------- */
   /* ====== 共通の使いやすさ部品（お客様情報の一括入力／診断箇所のひな形／複数写真／自動保存の復元／PDF軽量版） ====== */
-  var IB_FIELDS=[{id:"name",label:"お客様名",type:"text",ph:"例：サンプル　太郎　様邸",cell:function(){return document.querySelector('#doc table.info tr:nth-child(1) td:nth-child(2)')}},
+  var IB_FIELDS=[{id:"name",label:"お客様名",type:"text",ph:"",cell:function(){return document.querySelector('#doc table.info tr:nth-child(1) td:nth-child(2)')}},
  {id:"date",label:"点検日",type:"date",cell:function(){return document.querySelector('#doc table.info tr:nth-child(1) td:nth-child(4)')}},
  {id:"place",label:"所在地",type:"text",ph:"任意",cell:function(){return document.querySelector('#doc table.info tr:nth-child(2) td:nth-child(2)')}},
- {id:"tanto",label:"点検担当",type:"text",ph:"例：担当　花子",remember:true,cell:function(){return document.querySelector('#doc table.info tr:nth-child(2) td:nth-child(4)')}}];
+ {id:"tanto",label:"点検担当",type:"text",ph:"",remember:true,cell:function(){return document.querySelector('#doc table.info tr:nth-child(2) td:nth-child(4)')}}];
   var IB_PRESETS=[["基礎（立上り部）","基礎　立上り部",[["欠損　※深さ20mm以上の場合は要（判定）"],["ひび割れ　※幅0.5mm以上の場合は要（判定）"]]],
  ["外壁","外壁",[["クラック",DEF_RESULT,"特に必要ありません。"]]],
  ["屋根","屋根",[[""]]],["バルコニー","バルコニー",[[""]]],["コーキング","コーキング",[[""]]],
